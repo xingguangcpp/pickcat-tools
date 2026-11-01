@@ -229,6 +229,28 @@ python pickcat_bot.py refresh   # 复查审核状态 + 更新配额
 python pickcat_bot.py quota     # 看当前配额与恢复时间
 ```
 
+## 多账号: 把 AI 内容和你自己写的内容分开
+
+一个号一份 cookie、一份账本、一份配额、一份序号 —— 用来把"AI 代发"和"人写的"彻底隔开。
+典型用法: 主号(default)你自己写, AI 号(aibot)专门跑自动化。
+
+```bash
+python pickcat_bot.py --account aibot check
+python pickcat_cli.py  --account aibot post --title "标题" --body "正文"
+# 或设环境变量 PICKCAT_PROFILE=aibot
+```
+
+| 档案 | 凭证 | 状态文件 |
+|---|---|---|
+| `default` | 工具根目录 `.env` | 根目录 `.wm_ledger.json` / `.wm_quota.json` / `.wm_counter.json` / `.bot_state.json` |
+| 其他 (`aibot` 等) | `accounts/<名字>.env` | `.state/<名字>.wm_ledger.json` / `.state/<名字>.wm_quota.json` / ... |
+
+所以两个号的**水印序号各自从 1 开始**, 账本互不混淆, 审计时能一眼看出某条内容出自哪个号。
+`accounts/*.env` 和 `.state/` 都已 gitignore。详见 [`accounts/README.md`](accounts/README.md)。
+
+新号得你本人在浏览器注册(平台没开放注册接口, 登录还有人机验证), 流程见 accounts/README.md。
+注意: **新号不等于无限额度** —— 发帖额度是按账号算的(实测 `TOPIC_CREATE` 10 个/24h), 新号只是重新从 0 开始。
+
 ## 已知 API 坑 (实测, 别重复踩)
 
 | 坑 | 表现 | 对策 |

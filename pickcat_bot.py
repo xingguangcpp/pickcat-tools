@@ -34,9 +34,13 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from pickcat_client import PickcatClient, PickcatError, outage_record  # noqa: E402
+from pickcat_client import (  # noqa: E402
+    PickcatClient,
+    PickcatError,
+    outage_record,
+    state_file,
+)
 
-STATE_FILE = HERE / ".bot_state.json"
 ENV_FILE = HERE / ".env"
 
 # 每帖顶层评论上限 (用户定的规矩)
@@ -96,6 +100,12 @@ REPLY_HORIZON_DAYS = _num("PICKCAT_BOT_REPLY_HORIZON_DAYS", 7)
 
 def build_client():
     env = load_env()
+    # 多账号: 非 default 档案优先读 accounts/<profile>.env (每个号一份 cookie)
+    prof = os.environ.get("PICKCAT_PROFILE") or "default"
+    if prof != "default":
+        acct_file = HERE / "accounts" / f"{prof}.env"
+        if acct_file.exists():
+            env = {**env, **load_env(acct_file)}
     cookie = env.get("PICKCAT_COOKIE") or os.environ.get("PICKCAT_COOKIE")
     if not cookie:
         print(
@@ -110,16 +120,16 @@ def build_client():
 
 
 def load_state():
-    if STATE_FILE.exists():
+    if state_file(".bot_state.json").exists():
         try:
-            return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+            return json.loads(state_file(".bot_state.json").read_text(encoding="utf-8"))
         except Exception:
             return {}
     return {}
 
 
 def save_state(st):
-    STATE_FILE.write_text(
+    state_file(".bot_state.json").write_text(
         json.dumps(st, ensure_ascii=False, indent=2), encoding="utf-8"
     )
 
@@ -596,8 +606,8 @@ def cmd_refresh(c, args):
             r["reasonDetails"] = rec.get("reasonDetails")
     # 回写账本
     try:
-        from pickcat_client import LEDGER_FILE
-        LEDGER_FILE.write_text(json.dumps(ledger, ensure_ascii=False, indent=2), encoding="utf-8")
+        state_file(".wm_ledger.json").write_text(
+            json.dumps(ledger, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception as e:
         print(f"账本写回失败: {e}", file=sys.stderr)
 
@@ -748,6 +758,8 @@ def cmd_verify(c, args):
 
 def main():
     ap = argparse.ArgumentParser(description="Pickcat 半自动运营助手")
+    ap.add_argument("--account", default=None,
+                    help="账号档案名: 读 accounts/<名字>.env 的 cookie, 状态文件也按它隔离(.state/)")
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("check", help="扫描待回复 + AI 帖候选")
     p.add_argument("--json", action="store_true")
@@ -778,6 +790,9 @@ def main():
     sub.add_parser("quota", help="查看配额限制与恢复时间")
 
     args = ap.parse_args()
+    if args.account:
+        os.environ["PICKCAT_PROFILE"] = args.account
+        print(f"[账号档案] {args.account}")
     c = build_client()
     try:
         {

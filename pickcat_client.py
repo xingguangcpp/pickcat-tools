@@ -22,6 +22,7 @@ pickcat_client.py — Pickcat 社区(编程猫) 非官方 API 客户端 (Python 
 """
 
 import json
+import os
 import time
 import uuid
 import urllib.parse
@@ -62,18 +63,37 @@ WM_WIDTH = 6
 # 会显示成一小段空白高亮 —— 读者一选中就能察觉"这段是程序发的", 但肉眼看排版无异。
 WM_VISIBLE = "\u200b"
 WM_VISIBLE_REPEAT = 2
-WM_COUNTER_FILE = Path(__file__).resolve().parent / ".wm_counter.json"
+def _profile():
+    """当前账号档案名。
+
+    "default" 沿用旧的顶层状态文件(无需迁移已有数据);
+    其他名字各自一份独立状态, 放在 .state/<profile>.<文件名>。
+    """
+    return os.environ.get("PICKCAT_PROFILE") or "default"
+
+
+def state_file(base_name):
+    """按账号档案解析状态文件路径 (账本/配额/序号/宕机状态都走这里)。"""
+    root = Path(__file__).resolve().parent
+    p = _profile()
+    if p == "default":
+        return root / base_name
+    d = root / ".state"
+    try:
+        d.mkdir(exist_ok=True)
+    except Exception:
+        pass
+    return d / f"{p}.{base_name.lstrip('.')}"
+
+
 # 本地账本: 每次写操作落一条记录。服务端列表接口会截断、也看不到主题首楼,
 # 靠列表统计调用量必然漏 —— 账本才是准的。
-LEDGER_FILE = Path(__file__).resolve().parent / ".wm_ledger.json"
 # 配额状态: 平台对写操作有每日额度 (实测 TOPIC_CREATE 10 个 / 24h 滚动窗)。
 # 注意! 配额是**异步失败**的: POST 只返回 202, 失败信息要查投稿审核状态才看得到,
 # 所以必须把配额状态落盘, 并在后续写操作前主动拦截, 而不是等它一次次失败。
-QUOTA_FILE = Path(__file__).resolve().parent / ".wm_quota.json"
 # 服务可用性状态: 上游 API 挂掉时 (实测 502 Bad Gateway + 10s 超时),
 # 前端壳还在但所有 /api/v1/* 取不到数据。没有这个状态的话,
 # refresh 会把"服务挂了"误报成"状态无变化", 白白每小时撞一次墙。
-OUTAGE_FILE = Path(__file__).resolve().parent / ".wm_outage.json"
 # 连续失败多少次判定为"服务不可用"; 判定后冷却 10 分钟内不再重试(避免空转)
 # 一次 502 Bad Gateway 已经是确凿信号(不是瞬时抖动), 所以阈值=1;
 # 靠冷却期做迟滞: 冷却期内直接跳过, 冷却期过再探一次。
@@ -84,9 +104,9 @@ OUTAGE_COOLDOWN = 600
 def outage_record(ok):
     """记录一次请求成功/失败, 返回 (是否判定为不可用, 状态字典)。"""
     st = {}
-    if OUTAGE_FILE.exists():
+    if state_file(".wm_outage.json").exists():
         try:
-            st = json.loads(OUTAGE_FILE.read_text(encoding="utf-8"))
+            st = json.loads(state_file(".wm_outage.json").read_text(encoding="utf-8"))
         except Exception:
             st = {}
     if ok:
@@ -97,7 +117,7 @@ def outage_record(ok):
         st["last_fail_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
         st["down"] = st["consecutive_failures"] >= OUTAGE_THRESHOLD
     try:
-        OUTAGE_FILE.write_text(json.dumps(st, ensure_ascii=False, indent=2),
+        state_file(".wm_outage.json").write_text(json.dumps(st, ensure_ascii=False, indent=2),
                                encoding="utf-8")
     except Exception:
         pass
@@ -105,10 +125,10 @@ def outage_record(ok):
 
 
 def outage_read():
-    if not OUTAGE_FILE.exists():
+    if not state_file(".wm_outage.json").exists():
         return {"down": False, "consecutive_failures": 0}
     try:
-        d = json.loads(OUTAGE_FILE.read_text(encoding="utf-8"))
+        d = json.loads(state_file(".wm_outage.json").read_text(encoding="utf-8"))
         return d if isinstance(d, dict) else {"down": False}
     except Exception:
         return {"down": False}
@@ -147,7 +167,7 @@ def service_is_down():
 def quota_save(record):
     """记录一次配额失败信息 (来自投稿审核结果的 reasonDetails)。"""
     try:
-        QUOTA_FILE.write_text(
+        state_file(".wm_quota.json").write_text(
             json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8"
         )
     except Exception:
@@ -155,10 +175,10 @@ def quota_save(record):
 
 
 def quota_read():
-    if not QUOTA_FILE.exists():
+    if not state_file(".wm_quota.json").exists():
         return {}
     try:
-        d = json.loads(QUOTA_FILE.read_text(encoding="utf-8"))
+        d = json.loads(state_file(".wm_quota.json").read_text(encoding="utf-8"))
         return d if isinstance(d, dict) else {}
     except Exception:
         return {}
@@ -228,12 +248,12 @@ def ledger_append(record):
     """把一次写操作记进本地账本 (失败不影响主流程)。"""
     try:
         data = []
-        if LEDGER_FILE.exists():
-            data = json.loads(LEDGER_FILE.read_text(encoding="utf-8"))
+        if state_file(".wm_ledger.json").exists():
+            data = json.loads(state_file(".wm_ledger.json").read_text(encoding="utf-8"))
             if not isinstance(data, list):
                 data = []
         data.append(record)
-        LEDGER_FILE.write_text(
+        state_file(".wm_ledger.json").write_text(
             json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
         )
     except Exception:
@@ -241,10 +261,10 @@ def ledger_append(record):
 
 
 def ledger_read():
-    if not LEDGER_FILE.exists():
+    if not state_file(".wm_ledger.json").exists():
         return []
     try:
-        data = json.loads(LEDGER_FILE.read_text(encoding="utf-8"))
+        data = json.loads(state_file(".wm_ledger.json").read_text(encoding="utf-8"))
         return data if isinstance(data, list) else []
     except Exception:
         return []
@@ -311,14 +331,14 @@ def wm_apply(text, seq=None, position="end", visible=False):
 def wm_next_seq():
     """取下一个写操作序号 (持久化, 跨进程递增)。"""
     n = 0
-    if WM_COUNTER_FILE.exists():
+    if state_file(".wm_counter.json").exists():
         try:
-            n = int(json.loads(WM_COUNTER_FILE.read_text(encoding="utf-8")).get("seq", 0))
+            n = int(json.loads(state_file(".wm_counter.json").read_text(encoding="utf-8")).get("seq", 0))
         except Exception:
             n = 0
     n += 1
     try:
-        WM_COUNTER_FILE.write_text(
+        state_file(".wm_counter.json").write_text(
             json.dumps({"seq": n}, ensure_ascii=False), encoding="utf-8"
         )
     except Exception:
@@ -328,9 +348,9 @@ def wm_next_seq():
 
 def wm_peek_seq():
     """看一眼下一个序号, 但**不消耗**它 (dry-run 用)。"""
-    if WM_COUNTER_FILE.exists():
+    if state_file(".wm_counter.json").exists():
         try:
-            return int(json.loads(WM_COUNTER_FILE.read_text(encoding="utf-8")).get("seq", 0)) + 1
+            return int(json.loads(state_file(".wm_counter.json").read_text(encoding="utf-8")).get("seq", 0)) + 1
         except Exception:
             return 1
     return 1

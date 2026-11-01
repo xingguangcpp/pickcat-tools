@@ -21,3 +21,9 @@ cookies.txt
 # 系统
 .DS_Store
 Thumbs.db
+
+# 多账号: 每个账号一份凭证 (accounts/README.md 要保留)
+accounts/*.env
+
+# 按账号档案隔离的状态目录
+.state/

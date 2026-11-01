@@ -52,6 +52,12 @@ def load_env_file(path):
 
 def build_client(args, need_auth=True):
     env = load_env_file(Path(args.env))
+    # 多账号: 非 default 档案优先读 accounts/<profile>.env
+    prof = getattr(args, "account", None) or os.environ.get("PICKCAT_PROFILE") or "default"
+    if prof != "default":
+        acct_file = Path(__file__).resolve().parent / "accounts" / f"{prof}.env"
+        if acct_file.exists():
+            env = {**env, **load_env_file(acct_file)}
     username = args.user or env.get("PICKCAT_USERNAME") or os.environ.get("PICKCAT_USERNAME")
     password = args.passwd or env.get("PICKCAT_PASSWORD") or os.environ.get("PICKCAT_PASSWORD")
     cookie = args.cookie or env.get("PICKCAT_COOKIE") or os.environ.get("PICKCAT_COOKIE")
@@ -287,6 +293,8 @@ def main():
     ap.add_argument("--verbose", action="store_true", help="打印请求细节")
     ap.add_argument("--cookie", default=None, help="浏览器复制的 Cookie 头(绕过人机验证)")
     ap.add_argument("--cookie-file", dest="cookie_file", default=None, help="Netscape cookies.txt 路径")
+    ap.add_argument("--account", default=None,
+                    help="账号档案名: 读 accounts/<名字>.env 的 cookie, 状态文件也按它隔离(.state/)")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("ping", help="连通性自检")
