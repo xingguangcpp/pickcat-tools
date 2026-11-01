@@ -34,7 +34,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from pickcat_client import PickcatClient, PickcatError  # noqa: E402
+from pickcat_client import PickcatClient, PickcatError, outage_record  # noqa: E402
 
 STATE_FILE = HERE / ".bot_state.json"
 ENV_FILE = HERE / ".env"
@@ -46,8 +46,8 @@ MAX_COMMENTS_PER_DAY = int(os.environ.get("PICKCAT_BOT_MAX_COMMENTS_PER_DAY", "3
 MAX_REPLIES_PER_DAY = int(os.environ.get("PICKCAT_BOT_MAX_REPLIES_PER_DAY", "6"))
 # 两次写操作最小间隔(秒)
 WRITE_INTERVAL = float(os.environ.get("PICKCAT_BOT_WRITE_INTERVAL", "8"))
-# feed 里最多看多少帖用于找 AI 候选
-FEED_SCAN = int(os.environ.get("PICKCAT_BOT_FEED_SCAN", "30"))
+# feed 里最多看多少帖用于找 AI 候选 (服务端 feed limit 上限 50, 用 100 直接 400)
+FEED_SCAN = int(os.environ.get("PICKCAT_BOT_FEED_SCAN", "50"))
 # 最多给几个候选
 MAX_CANDIDATES = 5
 
@@ -120,16 +120,37 @@ def my_topics(c, uid, limit=30):
     return (data.get("items") if isinstance(data, dict) else data) or []
 
 
-def posts_of(c, topic_id, limit=50):
-    """返回该帖所有楼层(含楼中楼)。
+def posts_of(c, topic_id, limit=100, max_pages=20):
+    """返回该帖所有楼层(含楼中楼), 自动翻页取全。
 
     注意: GET /api/v1/topics/{id}/posts 返回的 items 只有顶层回复,
     楼中楼藏在每层的 children 数组里 (replyToPostNumber 指向父楼层)。
     不摊平 children 会漏掉"别人回复了我在楼中楼里的话"这种最典型的回帖。
+
+    **必须翻页**: 服务端 limit 上限 100, 超了要按 pageInfo.nextCursor 续取。
+    早期版本固定 limit=50 且不翻页 —— 楼层超过 50 的帖(BoxPlay 帖已 54 楼)
+    后面的楼层完全看不见, 其中包含真实"回我"的楼, 会被静默漏掉。
     """
-    data = c.get_topic_posts(topic_id, limit=limit)
-    items = (data.get("items") if isinstance(data, dict) else data) or []
-    return flatten_posts(items)
+    out = []
+    seen = set()
+    cursor = None
+    for _ in range(max_pages):
+        try:
+            data = c.get_topic_posts(topic_id, limit=limit, cursor=cursor)
+        except PickcatError:
+            break
+        items = (data.get("items") if isinstance(data, dict) else data) or []
+        for it in flatten_posts(items):
+            key = it.get("id") or it.get("postNumber")
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(it)
+        pi = data.get("pageInfo") or {}
+        cursor = pi.get("nextCursor")
+        if not pi.get("hasNextPage") or not cursor:
+            break
+    return out
 
 
 def flatten_posts(items, _depth=0):
@@ -173,7 +194,26 @@ def daily_guard(st, key):
 
 
 # ---------------------------------------------------------------- check
+def _fast_fail_if_down():
+    """服务不可用时快速失败: 别再一个个请求去撞墙(每个都要等 10s 超时)。"""
+    from pickcat_client import service_is_down
+
+    down, st = service_is_down()
+    if down:
+        print("=" * 58)
+        print("⛔ 服务不可用: 上游 API 连续失败 "
+              f"{st.get('consecutive_failures')} 次, 已判定为宕机。")
+        print(f"   最后失败: {st.get('last_fail_at')}  (冷却 10 分钟后自动重试)")
+        print("   前端壳还在, 但 /api/v1/* 全部 502 —— 这是服务端问题, 不是凭证/配额问题。")
+        print("   本轮跳过, 不会发出任何写操作。")
+        print("=" * 58)
+        return True
+    return False
+
+
 def cmd_check(c, args):
+    if _fast_fail_if_down():
+        return
     st = load_state()
     watched = st.setdefault("watched", {})
     uid = client_uid(c)
@@ -200,20 +240,44 @@ def cmd_check(c, args):
         except PickcatError as e:
             print(f"# 读取 {tid} 失败: {e}", file=sys.stderr)
             continue
+        try:
+            meta = c.get_topic(tid)
+        except PickcatError as e:
+            print(f"# 读取 {tid} 元信息失败: {e}", file=sys.stderr)
+            meta = {}
         last = int(info.get("last_seen", 0))
+        # 楼层号 -> 作者, 用来判断"这条到底回的是不是我"。
+        # 注意: /topics/{id}/posts 不含首楼(#1), 所以 rtp=1 要用"楼主"来当父楼层作者 ——
+        # 自己开的帖里 rtp=1 就是回我, 别人开的帖里 rtp=1 只是普通顶层评论。
+        topic_author = ((meta.get("author") or {}).get("id"))
+        author_by_pn = {1: topic_author}
+        for it in items:
+            author_by_pn[int(it.get("postNumber") or 0)] = (
+                (it.get("author") or {}).get("id")
+            )
+        # 新楼层总数 —— **必须含我自己发的**。
+        # 我自己回一句也会把服务端 replyCount 推高, 但我的楼层在下面被 continue 掉了,
+        # 早期版本只数"别人发的新楼层", 于是自己回帖后必然误报"列表被截断"。
+        new_floors = 0
         for it in items:
             pn = int(it.get("postNumber") or 0)
             if pn <= last:
                 continue
+            new_floors += 1
             a = it.get("author") or {}
             if a.get("id") == uid:
                 continue  # 自己发的跳过
+            rtp = it.get("replyToPostNumber")
+            parent_id = author_by_pn.get(int(rtp)) if rtp is not None else None
             pending.append(
                 {
                     "topicId": tid,
                     "title": info.get("title", ""),
                     "postNumber": pn,
-                    "replyToPostNumber": it.get("replyToPostNumber"),
+                    "replyToPostNumber": rtp,
+                    "parentAuthor": parent_id,
+                    # 真正的"回我": 父楼层是我 —— 楼中楼回我, 或者 (rtp=1/None) 回我的帖首楼
+                    "isReplyToMe": parent_id == uid,
                     "author": a.get("username"),
                     "authorId": a.get("id"),
                     "text": strip_html(it.get("cookedHtml") or it.get("markdown"))[:300],
@@ -224,42 +288,41 @@ def cmd_check(c, args):
 
         # 截断感知: 服务端可能只返回部分回复 (repliesTruncated)。
         # 此时"看不到"不等于"没人回", 必须显式报出来, 不能让 Agent 误判。
-        try:
-            meta = c.get_topic(tid)
-            rc = meta.get("replyCount")
-            trunc = meta.get("repliesTruncated")
-            # 注意: repliesTruncated 在这 API 上基本常驻 true, 不能单独当告警依据,
-            # 真正可信的信号是 "replyCount 变大了, 但列表里没出现对应的新楼层"。
-            prev_rc = info.get("reply_count")
-            new_items = [p for p in pending if p["topicId"] == tid]
-            if rc is not None and prev_rc is not None and rc > prev_rc:
-                if not new_items:
-                    anomalies.append(
-                        f"《{info.get('title','')[:24]}》replyCount {prev_rc}->{rc} 但列表里没有新楼层 "
-                        f"(repliesTruncated={trunc}) —— 可能有未显示的回复, 别当成'没人回'"
-                    )
-                else:
-                    info["reply_count"] = rc
-            elif rc is not None:
-                info["reply_count"] = rc
-            if rc is not None and rc > len(items):
+        rc = meta.get("replyCount")
+        trunc = meta.get("repliesTruncated")
+        # 注意: repliesTruncated 在这 API 上基本常驻 true, 不能单独当告警依据。
+        # 真正可信的信号有两条:
+        #   (a) replyCount 比我们实际看到的楼层数还大 —— 确定有没显示出来的回复;
+        #   (b) replyCount 增长了, 但新增楼层数(**含我自己发的**)撑不起这个增量。
+        # 早期版本用 (b) 时只数"别人发的新楼层", 自己回一句就会把 replyCount 推高,
+        # 于是自己回帖后必然误报"列表被截断" —— 已改为用 new_floors(含自己)。
+        prev_rc = info.get("reply_count")
+        if rc is not None and prev_rc is not None and rc > prev_rc:
+            delta = rc - prev_rc
+            if new_floors < delta:
                 anomalies.append(
-                    f"《{info.get('title','')[:24]}》replyCount={rc} > 返回 {len(items)} 条 "
-                    f"(列表不完整)"
+                    f"《{info.get('title','')[:24]}》replyCount {prev_rc}->{rc} (+{delta}) "
+                    f"但只看到 {new_floors} 个新楼层 "
+                    f"(repliesTruncated={trunc}) —— 可能有未显示的回复, 别当成'没人回'"
                 )
-            la = meta.get("lastActivityAt")
-            prev_la = info.get("last_activity_at")
-            if la and prev_la and la > prev_la and not any(
-                p["topicId"] == tid for p in pending
-            ):
-                anomalies.append(
-                    f"《{info.get('title','')[:24]}》lastActivityAt 有更新但列表里没有新楼层 "
-                    f"(列表可能被截断)"
-                )
-            if la:
-                info["last_activity_at"] = la
-        except PickcatError:
-            pass
+        if rc is not None:
+            info["reply_count"] = rc
+        if rc is not None and rc > len(items):
+            anomalies.append(
+                f"《{info.get('title','')[:24]}》replyCount={rc} > 返回 {len(items)} 条 "
+                f"(列表不完整)"
+            )
+        la = meta.get("lastActivityAt")
+        prev_la = info.get("last_activity_at")
+        # 同理: 我自己发帖也会推高 lastActivityAt, 所以判据要用 new_floors(含自己),
+        # 而不是"有没有别人回我"。
+        if la and prev_la and la > prev_la and new_floors == 0:
+            anomalies.append(
+                f"《{info.get('title','')[:24]}》lastActivityAt 有更新但列表里没有新楼层 "
+                f"(列表可能被截断)"
+            )
+        if la:
+            info["last_activity_at"] = la
     # ② AI 帖候选 (排除已关注 / 已评论过)
     candidates = []
     try:
@@ -308,16 +371,28 @@ def cmd_check(c, args):
             print(f"[配额] {q.get('action')} 上次用量 {q.get('used')}/{q.get('limit')}, 现已恢复")
     except Exception:
         pass
+    # 脚本内每日额度 —— 与平台配额是两回事, 两者都要看。
+    # 满了就是本轮零写入, 不是故障, 不要去撞护栏。
+    _d = st.get("daily", {})
+    print(f"[每日额度] 评论 {_d.get('comments', 0)}/{MAX_COMMENTS_PER_DAY}, "
+          f"回复 {_d.get('replies', 0)}/{MAX_REPLIES_PER_DAY} "
+          f"({_d.get('date', '-')}, 按自然日清零)")
     if anomalies:
         print(f"[⚠ 数据异常] {len(anomalies)} 条 —— 列表可能被服务端截断, 别当成'没人回'")
         for a in anomalies:
             print("  - " + a)
         print("-" * 60)
-    print(f"[待回复] {len(pending)} 条")
+    # 按"是否真的回我"排序: 真·回我的排前面, 同一档内按楼层号小(先到先回)。
+    # 顶层评论(rtp=1)也算回我 —— 那是我发帖后别人接的第一层。
+    pending.sort(key=lambda p: (not p["isReplyToMe"], p["postNumber"]))
+
+    real = [p for p in pending if p["isReplyToMe"]]
+    print(f"[待回复] {len(pending)} 条 (其中真·回我 {len(real)} 条)")
     for p in pending:
+        tag = "回我" if p["isReplyToMe"] else "非回我"
         print(f"  帖子: {p['title']}")
         print(f"    topicId={p['topicId']}  楼层 #{p['postNumber']} "
-              f"(replyTo={p['replyToPostNumber']})  来自 {p['author']}")
+              f"(replyTo={p['replyToPostNumber']})  来自 {p['author']}  [{tag}]")
         print(f"    内容: {p['text']}")
     print("-" * 60)
     print(f"[AI 帖候选] {len(candidates)} 个 (我已评顶层评论数已在括号里, >=3 会被护栏拦)")
@@ -407,6 +482,8 @@ def cmd_refresh(c, args):
     """
     from pickcat_client import ledger_read, quota_save, quota_from_submission, quota_remaining
 
+    if _fast_fail_if_down():
+        return
     ledger = ledger_read()
     changed = []
     quota = None
@@ -585,7 +662,6 @@ def cmd_verify(c, args):
 def main():
     ap = argparse.ArgumentParser(description="Pickcat 半自动运营助手")
     sub = ap.add_subparsers(dest="cmd", required=True)
-
     p = sub.add_parser("check", help="扫描待回复 + AI 帖候选")
     p.add_argument("--json", action="store_true")
 
@@ -616,17 +692,32 @@ def main():
 
     args = ap.parse_args()
     c = build_client()
-    {
-        "check": cmd_check,
-        "reply": cmd_reply,
-        "comment": cmd_comment,
-        "watch": cmd_watch,
-        "state": cmd_state,
-        "audit": cmd_audit,
-        "verify": cmd_verify,
-        "refresh": cmd_refresh,
-        "quota": cmd_quota,
-    }[args.cmd](c, args)
+    try:
+        {
+            "check": cmd_check,
+            "reply": cmd_reply,
+            "comment": cmd_comment,
+            "watch": cmd_watch,
+            "state": cmd_state,
+            "audit": cmd_audit,
+            "verify": cmd_verify,
+            "refresh": cmd_refresh,
+            "quota": cmd_quota,
+        }[args.cmd](c, args)
+    except PickcatError as e:
+        # 服务端整体不可用时给一句人话, 而不是甩 traceback
+        from pickcat_client import is_service_down
+
+        if is_service_down(e):
+            outage_record(False)
+            print("=" * 58)
+            print("⛔ 服务不可用: 上游 API 返回 502/超时。")
+            print("   前端壳还能开, 但 /api/v1/* 全部取不到数据 —— 服务端问题, 与凭证/配额无关。")
+            print("   本轮不执行任何写操作, 等服务端恢复后自动继续。")
+            print("=" * 58)
+            sys.exit(1)
+        print(f"失败: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

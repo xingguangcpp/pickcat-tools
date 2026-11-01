@@ -70,6 +70,78 @@ LEDGER_FILE = Path(__file__).resolve().parent / ".wm_ledger.json"
 # 注意! 配额是**异步失败**的: POST 只返回 202, 失败信息要查投稿审核状态才看得到,
 # 所以必须把配额状态落盘, 并在后续写操作前主动拦截, 而不是等它一次次失败。
 QUOTA_FILE = Path(__file__).resolve().parent / ".wm_quota.json"
+# 服务可用性状态: 上游 API 挂掉时 (实测 502 Bad Gateway + 10s 超时),
+# 前端壳还在但所有 /api/v1/* 取不到数据。没有这个状态的话,
+# refresh 会把"服务挂了"误报成"状态无变化", 白白每小时撞一次墙。
+OUTAGE_FILE = Path(__file__).resolve().parent / ".wm_outage.json"
+# 连续失败多少次判定为"服务不可用"; 判定后冷却 10 分钟内不再重试(避免空转)
+# 一次 502 Bad Gateway 已经是确凿信号(不是瞬时抖动), 所以阈值=1;
+# 靠冷却期做迟滞: 冷却期内直接跳过, 冷却期过再探一次。
+OUTAGE_THRESHOLD = 1
+OUTAGE_COOLDOWN = 600
+
+
+def outage_record(ok):
+    """记录一次请求成功/失败, 返回 (是否判定为不可用, 状态字典)。"""
+    st = {}
+    if OUTAGE_FILE.exists():
+        try:
+            st = json.loads(OUTAGE_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            st = {}
+    if ok:
+        st = {"down": False, "last_ok_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+              "consecutive_failures": 0}
+    else:
+        st["consecutive_failures"] = int(st.get("consecutive_failures", 0)) + 1
+        st["last_fail_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        st["down"] = st["consecutive_failures"] >= OUTAGE_THRESHOLD
+    try:
+        OUTAGE_FILE.write_text(json.dumps(st, ensure_ascii=False, indent=2),
+                               encoding="utf-8")
+    except Exception:
+        pass
+    return bool(st.get("down")), st
+
+
+def outage_read():
+    if not OUTAGE_FILE.exists():
+        return {"down": False, "consecutive_failures": 0}
+    try:
+        d = json.loads(OUTAGE_FILE.read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else {"down": False}
+    except Exception:
+        return {"down": False}
+
+
+def is_service_down(exc):
+    """判断这个异常是不是"服务端不可用"(而不是我们自己的错)。"""
+    status = getattr(exc, "status", None)
+    if status in (502, 503, 504):
+        return True
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict):
+        msg = str(body.get("message") or body.get("error") or "")
+        if "Bad Gateway" in msg or "Service Unavailable" in msg:
+            return True
+    txt = str(exc)
+    return "Bad Gateway" in txt or "timed out" in txt or "Connection refused" in txt
+
+
+def service_is_down():
+    """当前是否处于"判定不可用且仍在冷却期"状态。"""
+    st = outage_read()
+    if not st.get("down"):
+        return False, st
+    last = st.get("last_fail_at")
+    if last:
+        try:
+            t = time.mktime(time.strptime(last, "%Y-%m-%d %H:%M:%S"))
+            if time.time() - t > OUTAGE_COOLDOWN:
+                return False, st  # 冷却期过了, 允许再探一次
+        except Exception:
+            pass
+    return True, st
 
 
 def quota_save(record):
@@ -254,6 +326,16 @@ def wm_next_seq():
     return n
 
 
+def wm_peek_seq():
+    """看一眼下一个序号, 但**不消耗**它 (dry-run 用)。"""
+    if WM_COUNTER_FILE.exists():
+        try:
+            return int(json.loads(WM_COUNTER_FILE.read_text(encoding="utf-8")).get("seq", 0)) + 1
+        except Exception:
+            return 1
+    return 1
+
+
 
 def _parse_ns_cookie_file(path):
     """极简解析 Netscape cookies.txt, 提取 name=value 拼成原始 Cookie 串。
@@ -362,15 +444,22 @@ class PickcatClient:
         try:
             with self._opener.open(req, timeout=30) as r:
                 raw = r.read().decode("utf-8", "replace")
+            outage_record(True)
         except urllib.error.HTTPError as e:
             raw = e.read().decode("utf-8", "replace")
             try:
                 body = json.loads(raw) if raw else {}
             except Exception:
                 body = {"raw": raw}
-            raise PickcatError(e.code, body)
+            err = PickcatError(e.code, body)
+            if is_service_down(err):
+                outage_record(False)
+            raise err
         except Exception as e:  # 网络层错误
-            raise PickcatError(-1, {"error": str(e)})
+            err = PickcatError(-1, {"error": str(e)})
+            if is_service_down(err):
+                outage_record(False)
+            raise err
 
         if not raw:
             return None
@@ -493,7 +582,8 @@ class PickcatClient:
         }
         if watermark:
             # 标题与正文共用同一个序号 (一次写操作 = 一个 seq)
-            seq = wm_next_seq()
+            # dry-run 只预览, 不消耗序号 (否则账本会出现假缺口)
+            seq = wm_next_seq() if not self.dry_run else wm_peek_seq()
             body["markdown"] = wm_apply(body["markdown"], seq, position=wm_position, visible=True)
             body["title"] = wm_apply(body["title"], seq, position="end", visible=False)
         key = str(uuid.uuid4())
@@ -536,7 +626,7 @@ class PickcatClient:
             check_quota("TOPIC_REPLY")  # 配额闸门 (按动作分: 评论额度独立)
         seq = None
         if watermark:
-            seq = wm_next_seq()
+            seq = wm_next_seq() if not self.dry_run else wm_peek_seq()
             body["markdown"] = wm_apply(body["markdown"], seq, position=wm_position, visible=True)
         key = str(uuid.uuid4())
         if self.dry_run:
