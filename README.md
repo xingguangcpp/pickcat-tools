@@ -80,6 +80,58 @@ python pickcat_cli.py status <submissionId>   # 查审核
 - 不想手查 UUID: 直接 `python pickcat_cli.py tags` 看全部标签;
 - 或发帖时不传 `--tags`, 工具会自动取第一个可用标签(已在 dry-run 和真实发送都验证)。
 
+## 半自动运营机器人 (`pickcat_bot.py`)
+
+给"嘴替"场景用: 机器负责盯、判、护栏, LLM 负责写句子。
+
+```bash
+python pickcat_bot.py check                      # 扫描: 谁回了我 + AI 帖候选 + 数据异常
+python pickcat_bot.py reply  --topic-id <id> --reply-to <楼层> --body "..."
+python pickcat_bot.py comment --topic-id <id> --body "..."   # 评一条顶层评论
+python pickcat_bot.py watch  --topic-id <id>                # 加入关注列表
+python pickcat_bot.py state                                  # 看状态
+```
+
+硬护栏 (代码强制, 不靠自觉):
+- **每帖顶层评论 <= 3 条** (只数我自己发的), 楼中楼回复不限
+- 每日评论 <= 4 / 每日回复 <= 8 (可用环境变量调)
+- 写操作最小间隔 8 秒
+- 只动自己账号
+
+状态存在 `.bot_state.json` (已 gitignore): 关注列表 + 每帖 `last_seen` + 每日计数。
+凭证从 `.env` 的 `PICKCAT_COOKIE` 读, 输出里绝不回显。
+
+`check` 的输出分三块:
+- `[待回复]` — 有人回了我参与过的帖子 (优先处理)
+- `[AI 帖候选]` — feed 里适合评论的 AI 话题 (脚本会标出"我的顶层评论数", >=3 会被拦)
+- `[⚠ 数据异常]` — 该帖回复列表被服务端截断, **"没人回"可能是假的**, 别当无事发生
+
+## 已知 API 坑 (实测, 别重复踩)
+
+| 坑 | 表现 | 对策 |
+|---|---|---|
+| **302 重定向** | `cdsq.dao3.fun` 把 POST 302 到 `pickcat.dao3.fun`, urllib 遇 302 把 POST 降级成 GET 并丢 body -> 发帖必 404 | base 直连 `pickcat.dao3.fun` |
+| **回复列表被截断** | `GET /topics/{id}/posts` 会少给回复; 帖级 `repliesTruncated` 常驻 true, `replyCount` 也可能偏小 | 靠 `replyCount` 增长但列表无新楼层来发现, 出现就人工看一眼网页版 |
+| **单帖查询才是准的** | `GET /posts/{postId}` 能拿到确切状态 (`replyToPostNumber` / `publishedAt` / `latestSubmissionStatus`) | 排查单条回复时用它 |
+| **`children` 恒为空** | 楼中楼不挂在 `children` 里, 而是平铺进 `items` (用 `replyToPostNumber` 区分) | 遍历时按 `replyToPostNumber` 判断层级 |
+| **参数很挑** | `sort` 只认 `latest`; `limit` 上限约 100 (给 200 直接 400); `GET /post-submissions` 列表接口一律 400 (只有单条 `/{id}` 能用) | 见下方"接口清单" |
+| **发帖要 tag** | `tagIds` 至少 1 个, 空了报 `TOO_FEW, min:1` | `python pickcat_cli.py tags` 查真实 UUID |
+
+## 接口清单 (实测可用)
+
+| 端点 | 鉴权 | 说明 |
+|---|---|---|
+| `GET /api/v1/session` | 需登录 | 取本人 (user / expiresAt / silence) |
+| `POST /api/v1/session` | - | 邮箱+密码登录 (有人机验证, 实测走不通) |
+| `GET /api/v1/users/{uid}/topics` | 需登录 | 列本人主题 |
+| `GET /api/v1/topics` | 公开 | **社区帖子 feed**, 支持 limit + 游标分页 |
+| `GET /api/v1/topics/{id}` | 公开 | 主题详情 (含 replyCount / repliesTruncated / lastActivityAt) |
+| `GET /api/v1/topics/{id}/posts` | 公开 | 主题下的回复 (可能被截断) |
+| `GET /api/v1/posts/{postId}` | 公开 | 单条回复详情 (准确) |
+| `GET /api/v1/tags` | 公开 | 标签列表 (发帖必用) |
+| `POST /api/v1/posts` | 需登录 | 发帖/回帖 (需 Idempotency-Key, 返回 202 异步审核) |
+| `GET /api/v1/post-submissions/{id}` | 需登录 | 查审核状态 (PENDING_PROVIDER -> PENDING_PUBLICATION -> PUBLISHED) |
+
 ## 内置护栏 (为什么这样设计)
 1. **写操作强制间隔** (`--min-interval`, 默认 5s): 防止脚本瞬间狂发被风控。
 2. **`--dry-run`**: 写操作只打印"将发送什么", 不真正发请求。建议第一次先用它确认。

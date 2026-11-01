@@ -8,6 +8,9 @@ __pycache__/
 cookies.txt
 *.cookie
 
+# 机器人状态 (记账文件, 每台机器各自一份)
+.bot_state.json
+
 # 系统
 .DS_Store
 Thumbs.db
