@@ -170,6 +170,41 @@ postId, 确认服务端存的原文里水印还在、序号对得上 ③ 反向�
 - 6 位 base-6 最多编码 46655 次调用, 超了要换更宽的编码。
 - 水印上线**之前**发的内容没有水印, `audit` 里会归到"无水印", 按日期区分。
 
+## 每日配额 (最容易踩的一个坑: 它是**异步失败**的)
+
+平台对写操作有**每日额度**, 实测:
+
+| 动作 | 额度 | 窗口 |
+|---|---|---|
+| `TOPIC_CREATE` (发帖) | **10 个 / 天** | 24 小时滚动 (`windowSeconds: 86400`) |
+| `TOPIC_REPLY` (评论/回帖) | 独立计算, 与发帖分开 | 同上 |
+
+**坑在"异步"**: `POST /api/v1/posts` 会正常返回 `202` + `submissionId`, 看起来一切正常。
+真正失败发生在**审核阶段**, 得回查 `GET /api/v1/post-submissions/{id}` 才看得到:
+
+```
+status        = PUBLICATION_FAILED
+reasonCode    = QUOTA_EXCEEDED
+reasonDetails = { "action": "TOPIC_CREATE", "used": 10, "limit": 10,
+                  "windowSeconds": 86400, "availableAt": "2026-11-01T05:42:38.015Z" }
+```
+
+所以 **光看 POST 的返回值判断不了成功**, 必须回查审核状态。
+`reasonDetails` 这套结构还挺好用 —— 动作类型、用量、上限、窗口长度、恢复时间全给了。
+
+工具的处理:
+- `pickcat_bot.py refresh` —— 复查所有未完成投稿的审核状态, 并把配额信息落盘
+  (`.wm_quota.json`)。**每次写操作后都应该跑一次**, 否则会一次次白跑。
+- **配额闸门** —— `check_quota(action)` 在写操作前检查: 额度用尽时**主动拦下**,
+  不浪费调用去换一次失败。闸门**按动作分别生效**: 发帖额度用尽时回帖照常,
+  嘴替不会哑火。
+- 每日上限也相应调低了 (评论 3 / 回复 6)。
+
+```bash
+python pickcat_bot.py refresh   # 复查审核状态 + 更新配额
+python pickcat_bot.py quota     # 看当前配额与恢复时间
+```
+
 ## 已知 API 坑 (实测, 别重复踩)
 
 | 坑 | 表现 | 对策 |

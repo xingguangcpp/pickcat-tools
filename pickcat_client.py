@@ -66,6 +66,90 @@ WM_COUNTER_FILE = Path(__file__).resolve().parent / ".wm_counter.json"
 # 本地账本: 每次写操作落一条记录。服务端列表接口会截断、也看不到主题首楼,
 # 靠列表统计调用量必然漏 —— 账本才是准的。
 LEDGER_FILE = Path(__file__).resolve().parent / ".wm_ledger.json"
+# 配额状态: 平台对写操作有每日额度 (实测 TOPIC_CREATE 10 个 / 24h 滚动窗)。
+# 注意! 配额是**异步失败**的: POST 只返回 202, 失败信息要查投稿审核状态才看得到,
+# 所以必须把配额状态落盘, 并在后续写操作前主动拦截, 而不是等它一次次失败。
+QUOTA_FILE = Path(__file__).resolve().parent / ".wm_quota.json"
+
+
+def quota_save(record):
+    """记录一次配额失败信息 (来自投稿审核结果的 reasonDetails)。"""
+    try:
+        QUOTA_FILE.write_text(
+            json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+    except Exception:
+        pass
+
+
+def quota_read():
+    if not QUOTA_FILE.exists():
+        return {}
+    try:
+        d = json.loads(QUOTA_FILE.read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def quota_remaining():
+    """返回距离配额恢复还有多少秒; 0 = 现在就能发; None = 不知道配额。"""
+    q = quota_read()
+    at = q.get("availableAt")
+    if not at:
+        return 0
+    try:
+        import datetime as _dt
+
+        t = _dt.datetime.fromisoformat(at.replace("Z", "+00:00")).timestamp()
+        return max(0, int(t - time.time()))
+    except Exception:
+        return 0
+
+
+def check_quota(action="TOPIC_CREATE"):
+    """写操作前的配额闸门。
+
+    配额是**按动作**分的 (实测 TOPIC_CREATE 有 10/24h 的额度, 评论是另一套),
+    所以只拦对应动作 —— 发帖额度用尽时, 回帖/回复还能正常发, 嘴替不至于哑火。
+    """
+    q = quota_read()
+    if not q:
+        return
+    if q.get("action") and q.get("action") != action:
+        return  # 限额的是别的动作, 不影响本次操作
+    left = quota_remaining()
+    if left <= 0:
+        return
+    raise PickcatError(
+        -2,
+        {
+            "error": "配额已用尽, 暂停该类写操作",
+            "action": q.get("action"),
+            "used": q.get("used"),
+            "limit": q.get("limit"),
+            "availableAt": q.get("availableAt"),
+            "retryAfterSeconds": left,
+            "hint": "用 `pickcat_bot.py refresh` 复查配额是否已恢复",
+        },
+    )
+
+
+def quota_from_submission(record):
+    """从投稿审核结果里提取配额信息 (不是 QUOTA_EXCEEDED 就返回 None)。"""
+    if not isinstance(record, dict):
+        return None
+    if record.get("reasonCode") != "QUOTA_EXCEEDED":
+        return None
+    d = record.get("reasonDetails") or {}
+    return {
+        "action": d.get("action"),
+        "used": d.get("used"),
+        "limit": d.get("limit"),
+        "windowSeconds": d.get("windowSeconds"),
+        "availableAt": d.get("availableAt"),
+        "detectedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
 
 
 def ledger_append(record):
@@ -391,6 +475,8 @@ class PickcatClient:
         watermark: 默认在正文末尾追加隐形水印组 (标记"这条是 API 发的" + 写操作序号)。
         """
         tag_ids = tag_ids or []
+        if not self.dry_run:
+            check_quota("TOPIC_CREATE")  # 配额闸门: 发帖额度用尽就别浪费调用
         if not tag_ids and not self.dry_run:
             raise PickcatError(
                 -1,
@@ -446,6 +532,8 @@ class PickcatClient:
         body = {"topicId": topic_id, "markdown": markdown}
         if reply_to_post_number is not None:
             body["replyToPostNumber"] = reply_to_post_number
+        if not self.dry_run:
+            check_quota("TOPIC_REPLY")  # 配额闸门 (按动作分: 评论额度独立)
         seq = None
         if watermark:
             seq = wm_next_seq()

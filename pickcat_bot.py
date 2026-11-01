@@ -41,9 +41,9 @@ ENV_FILE = HERE / ".env"
 
 # 每帖顶层评论上限 (用户定的规矩)
 MAX_TOP_LEVEL = 3
-# 每日上限, 防刷屏
-MAX_COMMENTS_PER_DAY = int(os.environ.get("PICKCAT_BOT_MAX_COMMENTS_PER_DAY", "4"))
-MAX_REPLIES_PER_DAY = int(os.environ.get("PICKCAT_BOT_MAX_REPLIES_PER_DAY", "8"))
+# 每日上限, 防刷屏 (注意: 平台自己也有每日发帖额度, 见 README"配额"一节)
+MAX_COMMENTS_PER_DAY = int(os.environ.get("PICKCAT_BOT_MAX_COMMENTS_PER_DAY", "3"))
+MAX_REPLIES_PER_DAY = int(os.environ.get("PICKCAT_BOT_MAX_REPLIES_PER_DAY", "6"))
 # 两次写操作最小间隔(秒)
 WRITE_INTERVAL = float(os.environ.get("PICKCAT_BOT_WRITE_INTERVAL", "8"))
 # feed 里最多看多少帖用于找 AI 候选
@@ -296,6 +296,18 @@ def cmd_check(c, args):
         return
 
     print("=" * 60)
+    try:
+        from pickcat_client import quota_read, quota_remaining
+
+        q = quota_read()
+        left = quota_remaining()
+        if q and left > 0:
+            print(f"[⛔ 配额限制中] {q.get('action')} {q.get('used')}/{q.get('limit')} "
+                  f"已用尽, 距恢复 {left}s ({q.get('availableAt')}) —— 本轮不要尝试发帖/评论")
+        elif q:
+            print(f"[配额] {q.get('action')} 上次用量 {q.get('used')}/{q.get('limit')}, 现已恢复")
+    except Exception:
+        pass
     if anomalies:
         print(f"[⚠ 数据异常] {len(anomalies)} 条 —— 列表可能被服务端截断, 别当成'没人回'")
         for a in anomalies:
@@ -385,6 +397,76 @@ def cmd_watch(c, args):
     w[tid] = {"title": args.title or w.get(tid, {}).get("title", ""), "last_seen": ls}
     save_state(st)
     print(f"[ok] 已关注 {tid}, last_seen={ls}")
+
+
+def cmd_refresh(c, args):
+    """复查未完成的投稿: 更新审核状态, 并把配额信息落盘。
+
+    配额是**异步失败**的 —— POST 只返回 202, 要查审核状态才看得到 QUOTA_EXCEEDED。
+    所以必须主动复查, 否则会一次次白跑。
+    """
+    from pickcat_client import ledger_read, quota_save, quota_from_submission, quota_remaining
+
+    ledger = ledger_read()
+    changed = []
+    quota = None
+    for r in ledger:
+        sid = r.get("submissionId")
+        if not sid or r.get("status") not in ("PENDING_PROVIDER", "PENDING_PUBLICATION"):
+            continue
+        try:
+            rec = c.get_post_submission(sid)
+        except PickcatError as e:
+            print(f"  查询失败 {sid}: {e}", file=sys.stderr)
+            continue
+        st = rec.get("status")
+        if st != r.get("status"):
+            changed.append((r.get("seq"), r.get("status"), st))
+        r["status"] = st
+        if st == "PUBLICATION_FAILED":
+            r["reasonCode"] = rec.get("reasonCode")
+            q = quota_from_submission(rec)
+            if q:
+                quota = q
+                quota_save(q)
+            r["reasonDetails"] = rec.get("reasonDetails")
+    # 回写账本
+    try:
+        from pickcat_client import LEDGER_FILE
+        LEDGER_FILE.write_text(json.dumps(ledger, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as e:
+        print(f"账本写回失败: {e}", file=sys.stderr)
+
+    print(f"复查了 {len(ledger)} 条账本记录")
+    if changed:
+        for seq, old, new in changed:
+            print(f"  seq={seq}: {old} -> {new}")
+    else:
+        print("  状态无变化")
+    if quota:
+        print(f"  ⚠ 配额用尽: {quota['action']} {quota['used']}/{quota['limit']} "
+              f"(窗口 {quota.get('windowSeconds')}s), 恢复时间 {quota['availableAt']}")
+        print(f"    距恢复还有 {quota_remaining()} 秒 —— 期间所有写操作会被闸门拦住")
+    else:
+        left = quota_remaining()
+        print(f"  当前无配额限制" + (f" (距恢复 {left}s)" if left else ""))
+
+
+def cmd_quota(c, args):
+    from pickcat_client import quota_read, quota_remaining
+
+    q = quota_read()
+    if not q:
+        print("未记录到配额限制 (还没撞过额度)")
+        return
+    left = quota_remaining()
+    print("=== 配额状态 ===")
+    print(f"  动作    : {q.get('action')}")
+    print(f"  用量    : {q.get('used')}/{q.get('limit')}")
+    print(f"  窗口    : {q.get('windowSeconds')} 秒")
+    print(f"  恢复时间: {q.get('availableAt')}")
+    print(f"  剩余    : {left} 秒" + ("  (仍在限制中, 写操作会被拦)" if left else "  (已恢复)"))
+    print(f"  检测于  : {q.get('detectedAt')}")
 
 
 def cmd_state(c, args):
@@ -529,6 +611,8 @@ def main():
     p.add_argument("--tail", type=int, default=5, help="抽查最近几条 (默认5)")
     p.add_argument("--all", action="store_true", help="全量抽查")
     sub.add_parser("verify", help="验证水印能否在服务端存活")
+    sub.add_parser("refresh", help="复查未完成投稿的审核状态 + 更新配额")
+    sub.add_parser("quota", help="查看配额限制与恢复时间")
 
     args = ap.parse_args()
     c = build_client()
@@ -540,6 +624,8 @@ def main():
         "state": cmd_state,
         "audit": cmd_audit,
         "verify": cmd_verify,
+        "refresh": cmd_refresh,
+        "quota": cmd_quota,
     }[args.cmd](c, args)
 
 

@@ -1,0 +1,8 @@
+{
+  "action": "TOPIC_CREATE",
+  "used": 10,
+  "limit": 10,
+  "windowSeconds": 86400,
+  "availableAt": "2026-11-01T05:42:38.015Z",
+  "detectedAt": "2026-11-01 13:01:02"
+}
