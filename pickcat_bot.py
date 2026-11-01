@@ -41,11 +41,7 @@ ENV_FILE = HERE / ".env"
 
 # 每帖顶层评论上限 (用户定的规矩)
 MAX_TOP_LEVEL = 3
-# 每日上限, 防刷屏 (注意: 平台自己也有每日发帖额度, 见 README"配额"一节)
-MAX_COMMENTS_PER_DAY = int(os.environ.get("PICKCAT_BOT_MAX_COMMENTS_PER_DAY", "3"))
-MAX_REPLIES_PER_DAY = int(os.environ.get("PICKCAT_BOT_MAX_REPLIES_PER_DAY", "6"))
-# 两次写操作最小间隔(秒)
-WRITE_INTERVAL = float(os.environ.get("PICKCAT_BOT_WRITE_INTERVAL", "8"))
+# (每日上限等参数在下面 load_env() 之后统一读取, 因为要支持 .env 配置)
 # feed 里最多看多少帖用于找 AI 候选 (服务端 feed limit 上限 50, 用 100 直接 400)
 FEED_SCAN = int(os.environ.get("PICKCAT_BOT_FEED_SCAN", "50"))
 # 最多给几个候选
@@ -70,6 +66,30 @@ def load_env(path=ENV_FILE):
         k, v = line.split("=", 1)
         cfg[k.strip()] = v.strip().strip('"').strip("'")
     return cfg
+
+
+# 参数来源优先级: 进程环境变量 > .env > 默认值。
+# 之前这里只读 os.environ, 结果 .env 里写的上限根本不生效(一直用的是硬编码默认值),
+# 已修 —— 改 .env 现在真的管用。
+_ENV = load_env()
+
+
+def _num(key, default, cast=int):
+    v = os.environ.get(key) or _ENV.get(key)
+    if v is None or str(v).strip() == "":
+        return default
+    try:
+        return cast(v)
+    except Exception:
+        return default
+
+
+# 每日上限, 防刷屏。评论(评新帖)是刷量方向, 卡得紧; 回复(回具体楼层)是"嘴替"本职,
+# 卡太死会让人干等着, 所以给得宽 —— 平台真正的限制在发帖额度上, 见 README"配额"一节。
+MAX_COMMENTS_PER_DAY = _num("PICKCAT_BOT_MAX_COMMENTS_PER_DAY", 3)
+MAX_REPLIES_PER_DAY = _num("PICKCAT_BOT_MAX_REPLIES_PER_DAY", 12)
+# 两次写操作最小间隔(秒)
+WRITE_INTERVAL = _num("PICKCAT_BOT_WRITE_INTERVAL", 8.0, float)
 
 
 def build_client():
@@ -211,6 +231,39 @@ def _fast_fail_if_down():
     return False
 
 
+def answered_floor_numbers(c, topic_id, uid):
+    """我已经回过的楼层号集合 (用来判定"这条是不是已经处理过了")。
+
+    两个来源取并集:
+      (a) 服务端 —— 我发过的楼层中 replyToPostNumber == N 的那些 N, 说明我在 N 楼下接过话。
+          这能覆盖**用户手打**的回复 (那些不进账本)。
+      (b) 账本 —— reply 命令会记录 replyTo=N。即使我这层的审核还没过、服务端暂时看不到,
+          账本也能证明"我回过了", 避免重复回同一个人。
+    """
+    out = set()
+    try:
+        for it in posts_of(c, topic_id):
+            if (it.get("author") or {}).get("id") != uid:
+                continue
+            rtp = it.get("replyToPostNumber")
+            if rtp is not None:
+                out.add(int(rtp))
+    except PickcatError:
+        pass
+    try:
+        from pickcat_client import ledger_read
+
+        for r in ledger_read():
+            if r.get("topicId") != topic_id or r.get("kind") != "reply":
+                continue
+            rt = r.get("replyTo")
+            if rt is not None:
+                out.add(int(rt))
+    except Exception:
+        pass
+    return out
+
+
 def cmd_check(c, args):
     if _fast_fail_if_down():
         return
@@ -255,6 +308,8 @@ def cmd_check(c, args):
             author_by_pn[int(it.get("postNumber") or 0)] = (
                 (it.get("author") or {}).get("id")
             )
+        # 我已经回过的楼层 —— 用来把"我回过的"和"还没回的"分开。
+        answered = answered_floor_numbers(c, tid, uid)
         # 新楼层总数 —— **必须含我自己发的**。
         # 我自己回一句也会把服务端 replyCount 推高, 但我的楼层在下面被 continue 掉了,
         # 早期版本只数"别人发的新楼层", 于是自己回帖后必然误报"列表被截断"。
@@ -269,6 +324,11 @@ def cmd_check(c, args):
                 continue  # 自己发的跳过
             rtp = it.get("replyToPostNumber")
             parent_id = author_by_pn.get(int(rtp)) if rtp is not None else None
+            # **不看 watermark** —— 只要还没回过, 无论楼层号多小都算待回。
+            # 旧逻辑用 last_seen 过滤"新楼层", 但 last_seen 会被回帖动作推到最大楼层号,
+            # 于是"我回了高层楼、低层楼还没回"的情况会永久丢失 (低层楼号 < last_seen)。
+            if parent_id == uid and pn in answered:
+                continue  # 我已经回过这一层了
             pending.append(
                 {
                     "topicId": tid,
@@ -278,6 +338,7 @@ def cmd_check(c, args):
                     "parentAuthor": parent_id,
                     # 真正的"回我": 父楼层是我 —— 楼中楼回我, 或者 (rtp=1/None) 回我的帖首楼
                     "isReplyToMe": parent_id == uid,
+                    "answered": pn in answered,
                     "author": a.get("username"),
                     "authorId": a.get("id"),
                     "text": strip_html(it.get("cookedHtml") or it.get("markdown"))[:300],
