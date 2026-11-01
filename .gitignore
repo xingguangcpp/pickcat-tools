@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+
+# 本地凭证 (切勿提交!)
+.env
+cookies.txt
+*.cookie
+
+# 系统
+.DS_Store
+Thumbs.db
