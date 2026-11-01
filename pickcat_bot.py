@@ -397,6 +397,93 @@ def cmd_state(c, args):
         print(f"  - {info.get('title', '')[:40]}  {tid}  last_seen={info.get('last_seen')}")
 
 
+def cmd_audit(c, args):
+    """审计: 我发过的内容里, 哪些带隐形水印(= API 发的), 哪些没有(= 浏览器手发的),
+    以及写操作序号有没有缺口(缺 = 那次调用没落地/被删了)。"""
+    from pickcat_client import wm_decode, wm_strip
+
+    st = load_state()
+    uid = client_uid(c)
+    seqs = []
+    api_posts = 0
+    unmarked = []
+    samples = []
+
+    for tid, info in st.get("watched", {}).items():
+        try:
+            items = posts_of(c, tid)
+        except PickcatError:
+            continue
+        for it in items:
+            if (it.get("author") or {}).get("id") != uid:
+                continue
+            html = it.get("cookedHtml") or ""
+            found = wm_decode(html)
+            if found:
+                api_posts += 1
+                seqs.extend(s for s, _, _ in found)
+                if len(samples) < 3:
+                    samples.append((info.get("title", "")[:22], found[0][0],
+                                    wm_strip(html)[:60]))
+            else:
+                unmarked.append((it.get("createdAt", "")[:10], info.get("title", "")[:24]))
+
+    uniq = sorted(set(seqs))
+    gaps = []
+    if uniq:
+        gaps = [n for n in range(1, max(uniq) + 1) if n not in uniq]
+
+    print("=" * 60)
+    print("【水印审计】我发过的内容")
+    print(f"  带水印 (水印上线后经 API 发的) : {api_posts} 条")
+    print(f"  无水印                          : {len(unmarked)} 条"
+          f"  (浏览器手发, 或水印功能上线前发的 —— 看日期区分)")
+    print(f"  水印序号                        : {uniq}")
+    print(f"  最大序号 (= 累计写操作次数)     : {max(uniq) if uniq else 0}")
+    if gaps:
+        print(f"  ⚠ 序号缺口                      : {gaps}  (这些调用没落地: 被拒/审核未过/被删)")
+    else:
+        print("  序号无缺口                      : 每次调用都有对应内容")
+    for t, s, txt in samples:
+        print(f"  样例: 《{t}》 seq={s} | {txt}")
+    if unmarked:
+        print("  无水印条目 (日期 / 标题):")
+        for d, t in unmarked[:8]:
+            print(f"    - {d}  《{t}》")
+        if len(unmarked) > 8:
+            print(f"    ... 还有 {len(unmarked) - 8} 条")
+    print("=" * 60)
+
+
+def cmd_verify(c, args):
+    """验证水印能不能在服务端存活: 看最近一条自己发的内容里能不能解出序号。"""
+    from pickcat_client import wm_decode, wm_strip
+
+    st = load_state()
+    uid = client_uid(c)
+    newest = None
+    for tid, info in st.get("watched", {}).items():
+        try:
+            items = posts_of(c, tid)
+        except PickcatError:
+            continue
+        for it in items:
+            if (it.get("author") or {}).get("id") != uid:
+                continue
+            if newest is None or (it.get("postNumber") or 0) > newest[0]:
+                newest = (it.get("postNumber") or 0, tid, it)
+    if not newest:
+        print("没找到我自己发的内容")
+        return
+    pn, tid, it = newest
+    html = it.get("cookedHtml") or ""
+    found = wm_decode(html)
+    print(f"最新一条: topic={tid} #{pn}")
+    print(f"  原文尾部 repr: {repr(html[-30:])}")
+    print(f"  解出水印: {found if found else '无 —— 水印被服务端清洗掉了!'}")
+    print(f"  去水印后: {wm_strip(html)[:80]}")
+
+
 def main():
     ap = argparse.ArgumentParser(description="Pickcat 半自动运营助手")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -422,6 +509,8 @@ def main():
     p.add_argument("--title", default="")
 
     sub.add_parser("state", help="打印状态")
+    sub.add_parser("audit", help="水印审计: API 发的 vs 浏览器手发的, 查序号缺口")
+    sub.add_parser("verify", help="验证水印能否在服务端存活")
 
     args = ap.parse_args()
     c = build_client()
@@ -431,6 +520,8 @@ def main():
         "comment": cmd_comment,
         "watch": cmd_watch,
         "state": cmd_state,
+        "audit": cmd_audit,
+        "verify": cmd_verify,
     }[args.cmd](c, args)
 
 

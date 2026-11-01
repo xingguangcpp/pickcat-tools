@@ -28,6 +28,7 @@ import urllib.parse
 import urllib.request
 import urllib.error
 from http.cookiejar import CookieJar
+from pathlib import Path
 
 DEFAULT_BASE = "https://pickcat.dao3.fun"
 USER_AGENT = "pickcat-tools/0.1 (+self-management)"
@@ -37,6 +38,98 @@ USER_AGENT = "pickcat-tools/0.1 (+self-management)"
 # (urllib 把 POST 降级为 GET) 导致的。直连 pickcat.dao3.fun 即正常。
 POST_PATH = "/api/v1/posts"
 TAGS_PATH = "/api/v1/tags"
+
+# ---------------------------------------------------------------------------
+# 隐形水印: 标记"这条内容是走 API 发的", 并给每次写操作编号
+#
+# 目的有两个:
+#   1) 溯源 —— 任何人都可以扒原始文本看出哪些内容是机器人发的 (可验证的标记,
+#      而不是靠"感觉像 AI"); 也方便自己区分"浏览器手发的" vs "API 发的"。
+#   2) 计数 —— 序号递增, 能统计调用量, 还能看出哪几次调用"丢了"(缺口)。
+#
+# 字符选型说明:
+#   - 主体用 U+2060 (WORD JOINER) 与 U+2061~U+2064 (不可见算子): 它们语义上
+#     就是"不可见", 零宽, 不参与任何排版/emoji 组合, 误报概率极低。
+#   - U+200D (ZWJ) 也在字母表里 (按需求), 但它对 emoji 有实义, 所以只允许
+#     出现在组内、不放在 emoji 序列中间; 实测是否被服务端清洗由 verify 命令验证。
+#   - 不选 U+00AD (软连字符, 换行处会显形) / U+FEFF (BOM, 语义特殊)。
+#
+# 编码: 6 位 base-6 序号 + 1 位校验和(sum(digits) % 6), 定长 7 字符。
+# ---------------------------------------------------------------------------
+WM_ALPHABET = ["⁠", "⁡", "⁢", "⁣", "⁤", "‍"]
+WM_WIDTH = 6
+WM_COUNTER_FILE = Path(__file__).resolve().parent / ".wm_counter.json"
+
+
+def wm_encode(seq):
+    """把序号编码成定长隐形水印组 (7 个不可见字符)。"""
+    n = int(seq)
+    digits = []
+    for _ in range(WM_WIDTH):
+        digits.append(n % 6)
+        n //= 6
+    digits.reverse()
+    body = "".join(WM_ALPHABET[d] for d in digits)
+    return body + WM_ALPHABET[sum(digits) % 6]
+
+
+def wm_decode(text):
+    """从文本里解出所有水印组, 返回 [(seq, start, end), ...]; 无则空列表。"""
+    out = []
+    i = 0
+    n = len(text or "")
+    span = WM_WIDTH + 1
+    while i + span <= n:
+        window = text[i : i + span]
+        if all(ch in WM_ALPHABET for ch in window):
+            digits = [WM_ALPHABET.index(ch) for ch in window[:WM_WIDTH]]
+            if sum(digits) % 6 == WM_ALPHABET.index(window[WM_WIDTH]):
+                seq = 0
+                for d in digits:
+                    seq = seq * 6 + d
+                out.append((seq, i, i + span))
+                i += span
+                continue
+        i += 1
+    return out
+
+
+def wm_strip(text):
+    """去掉所有水印组, 便于正常显示/对比。"""
+    if not text:
+        return text
+    for _seq, s, e in sorted(wm_decode(text), key=lambda x: -x[1]):
+        text = text[:s] + text[e:]
+    return text
+
+
+def wm_apply(text, seq=None, position="end"):
+    """给文本加上水印组。position: 'end'(默认, 不干扰首行 markdown) 或 'start'。"""
+    if seq is None:
+        seq = wm_next_seq()
+    group = wm_encode(seq)
+    if position == "start":
+        return group + (text or "")
+    return (text or "") + group
+
+
+def wm_next_seq():
+    """取下一个写操作序号 (持久化, 跨进程递增)。"""
+    n = 0
+    if WM_COUNTER_FILE.exists():
+        try:
+            n = int(json.loads(WM_COUNTER_FILE.read_text(encoding="utf-8")).get("seq", 0))
+        except Exception:
+            n = 0
+    n += 1
+    try:
+        WM_COUNTER_FILE.write_text(
+            json.dumps({"seq": n}, ensure_ascii=False), encoding="utf-8"
+        )
+    except Exception:
+        pass
+    return n
+
 
 
 def _parse_ns_cookie_file(path):
@@ -249,12 +342,14 @@ class PickcatClient:
         """GET /api/v1/tags -> 可发帖用的标签列表 (每项含 id / name 等)。"""
         return self._request("GET", TAGS_PATH)
 
-    def create_topic(self, title, markdown, kind="DISCUSSION", tag_ids=None):
+    def create_topic(self, title, markdown, kind="DISCUSSION", tag_ids=None,
+                     watermark=True, wm_position="end"):
         """
         POST /api/v1/posts 发布主题首楼 (字段名 camelCase, 与文档站一致)。
         需要 Idempotency-Key + Origin 头 (自动加)。返回 202 异步审核。
         服务端校验: tagIds 至少 1 个 (TOO_FEW, min:1), 否则发帖被拒。
         kind 取值: DISCUSSION / QUESTION / ANNOUNCEMENT。
+        watermark: 默认在正文末尾追加隐形水印组 (标记"这条是 API 发的" + 写操作序号)。
         """
         tag_ids = tag_ids or []
         if not tag_ids and not self.dry_run:
@@ -271,6 +366,8 @@ class PickcatClient:
             "kind": kind,
             "tagIds": tag_ids,
         }
+        if watermark:
+            body["markdown"] = wm_apply(body["markdown"], position=wm_position)
         key = str(uuid.uuid4())
         if self.dry_run:
             print(
@@ -287,11 +384,14 @@ class PickcatClient:
             extra_headers={"Idempotency-Key": key},
         )
 
-    def create_reply(self, topic_id, markdown, reply_to_post_number=None):
-        """POST /api/v1/posts 发布回帖 (可楼中楼)。"""
+    def create_reply(self, topic_id, markdown, reply_to_post_number=None,
+                     watermark=True, wm_position="end"):
+        """POST /api/v1/posts 发布回帖 (可楼中楼)。默认追加隐形水印组。"""
         body = {"topicId": topic_id, "markdown": markdown}
         if reply_to_post_number is not None:
             body["replyToPostNumber"] = reply_to_post_number
+        if watermark:
+            body["markdown"] = wm_apply(body["markdown"], position=wm_position)
         key = str(uuid.uuid4())
         if self.dry_run:
             print(

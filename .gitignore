@@ -10,6 +10,7 @@ cookies.txt
 
 # 机器人状态 (记账文件, 每台机器各自一份)
 .bot_state.json
+.wm_counter.json
 
 # 系统
 .DS_Store
