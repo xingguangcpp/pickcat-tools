@@ -90,6 +90,8 @@ MAX_COMMENTS_PER_DAY = _num("PICKCAT_BOT_MAX_COMMENTS_PER_DAY", 3)
 MAX_REPLIES_PER_DAY = _num("PICKCAT_BOT_MAX_REPLIES_PER_DAY", 12)
 # 两次写操作最小间隔(秒)
 WRITE_INTERVAL = _num("PICKCAT_BOT_WRITE_INTERVAL", 8.0, float)
+# "回我"的历史楼层最多回溯多少天 (再早的回信不该翻出来回)
+REPLY_HORIZON_DAYS = _num("PICKCAT_BOT_REPLY_HORIZON_DAYS", 7)
 
 
 def build_client():
@@ -231,6 +233,21 @@ def _fast_fail_if_down():
     return False
 
 
+def _is_recent(it, days):
+    """楼层是否在最近 N 天内建的 (没有 createdAt 就当不新)。
+
+    用途: 把"回我"的历史楼层限制在合理时间窗内 —— 半年前的回信不该翻出来回。
+    """
+    ca = it.get("createdAt")
+    if not ca:
+        return False
+    try:
+        ts = time.mktime(time.strptime(ca[:19], "%Y-%m-%dT%H:%M:%S")) - time.timezone
+    except Exception:
+        return False
+    return (time.time() - ts) <= days * 86400
+
+
 def answered_floor_numbers(c, topic_id, uid):
     """我已经回过的楼层号集合 (用来判定"这条是不是已经处理过了")。
 
@@ -319,16 +336,25 @@ def cmd_check(c, args):
             if pn <= last:
                 continue
             new_floors += 1
+        for it in items:
+            pn = int(it.get("postNumber") or 0)
             a = it.get("author") or {}
             if a.get("id") == uid:
                 continue  # 自己发的跳过
             rtp = it.get("replyToPostNumber")
             parent_id = author_by_pn.get(int(rtp)) if rtp is not None else None
-            # **不看 watermark** —— 只要还没回过, 无论楼层号多小都算待回。
-            # 旧逻辑用 last_seen 过滤"新楼层", 但 last_seen 会被回帖动作推到最大楼层号,
-            # 于是"我回了高层楼、低层楼还没回"的情况会永久丢失 (低层楼号 < last_seen)。
-            if parent_id == uid and pn in answered:
+            is_mine = parent_id == uid
+            if is_mine and pn in answered:
                 continue  # 我已经回过这一层了
+            # "回我"的楼层判定**不看 watermark**, 只看"是否已回过" + "是否够新"。
+            # 原因: 回帖动作会把 last_seen 推到该帖最大楼层号, 于是"我回了高层楼、
+            # 低层还没回"的情况会被 watermark 永久吞掉 —— 那种回信就再也捡不回来了。
+            # 但历史楼层(几个月前的)不该翻出来回, 所以用 createdAt 卡一个时间窗。
+            if is_mine:
+                if pn <= last and not _is_recent(it, REPLY_HORIZON_DAYS):
+                    continue
+            elif pn <= last:
+                continue  # 跟我无关的老楼层, 降噪
             pending.append(
                 {
                     "topicId": tid,
@@ -337,7 +363,7 @@ def cmd_check(c, args):
                     "replyToPostNumber": rtp,
                     "parentAuthor": parent_id,
                     # 真正的"回我": 父楼层是我 —— 楼中楼回我, 或者 (rtp=1/None) 回我的帖首楼
-                    "isReplyToMe": parent_id == uid,
+                    "isReplyToMe": is_mine,
                     "answered": pn in answered,
                     "author": a.get("username"),
                     "authorId": a.get("id"),
