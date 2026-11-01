@@ -56,9 +56,42 @@ TAGS_PATH = "/api/v1/tags"
 #
 # 编码: 6 位 base-6 序号 + 1 位校验和(sum(digits) % 6), 定长 7 字符。
 # ---------------------------------------------------------------------------
-WM_ALPHABET = ["⁠", "⁡", "⁢", "⁣", "⁤", "‍"]
+WM_ALPHABET = ["\u2060", "\u2061", "\u2062", "\u2063", "\u2064", "\u200d"]
 WM_WIDTH = 6
+# "选中才看得见"的标记: U+200B 零宽空格在多数浏览器里不占位, 但被选中/复制时
+# 会显示成一小段空白高亮 —— 读者一选中就能察觉"这段是程序发的", 但肉眼看排版无异。
+WM_VISIBLE = "\u200b"
+WM_VISIBLE_REPEAT = 2
 WM_COUNTER_FILE = Path(__file__).resolve().parent / ".wm_counter.json"
+# 本地账本: 每次写操作落一条记录。服务端列表接口会截断、也看不到主题首楼,
+# 靠列表统计调用量必然漏 —— 账本才是准的。
+LEDGER_FILE = Path(__file__).resolve().parent / ".wm_ledger.json"
+
+
+def ledger_append(record):
+    """把一次写操作记进本地账本 (失败不影响主流程)。"""
+    try:
+        data = []
+        if LEDGER_FILE.exists():
+            data = json.loads(LEDGER_FILE.read_text(encoding="utf-8"))
+            if not isinstance(data, list):
+                data = []
+        data.append(record)
+        LEDGER_FILE.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+    except Exception:
+        pass
+
+
+def ledger_read():
+    if not LEDGER_FILE.exists():
+        return []
+    try:
+        data = json.loads(LEDGER_FILE.read_text(encoding="utf-8"))
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
 
 
 def wm_encode(seq):
@@ -95,19 +128,25 @@ def wm_decode(text):
 
 
 def wm_strip(text):
-    """去掉所有水印组, 便于正常显示/对比。"""
+    """去掉所有水印组 (以及"选中可见"标记), 便于正常显示/对比。"""
     if not text:
         return text
     for _seq, s, e in sorted(wm_decode(text), key=lambda x: -x[1]):
         text = text[:s] + text[e:]
-    return text
+    return text.replace(WM_VISIBLE, "")
 
 
-def wm_apply(text, seq=None, position="end"):
-    """给文本加上水印组。position: 'end'(默认, 不干扰首行 markdown) 或 'start'。"""
+def wm_apply(text, seq=None, position="end", visible=False):
+    """给文本加上水印组。position: 'end'(默认) 或 'start'。
+
+    visible=True 时额外追加 WM_VISIBLE 标记 (零宽空格): 排版上看不见,
+    但被选中/复制时会显示出来, 起到"不扒源码也能看出是程序发的"作用。
+    """
     if seq is None:
         seq = wm_next_seq()
     group = wm_encode(seq)
+    if visible:
+        group = group + WM_VISIBLE * WM_VISIBLE_REPEAT
     if position == "start":
         return group + (text or "")
     return (text or "") + group
@@ -367,7 +406,10 @@ class PickcatClient:
             "tagIds": tag_ids,
         }
         if watermark:
-            body["markdown"] = wm_apply(body["markdown"], position=wm_position)
+            # 标题与正文共用同一个序号 (一次写操作 = 一个 seq)
+            seq = wm_next_seq()
+            body["markdown"] = wm_apply(body["markdown"], seq, position=wm_position, visible=True)
+            body["title"] = wm_apply(body["title"], seq, position="end", visible=False)
         key = str(uuid.uuid4())
         if self.dry_run:
             print(
@@ -377,21 +419,37 @@ class PickcatClient:
             )
             return {"dry_run": True, "idempotency_key": key, "body": body}
         self._throttle()
-        return self._request(
+        resp = self._request(
             "POST",
             POST_PATH,
             json_body=body,
             extra_headers={"Idempotency-Key": key},
         )
+        if watermark and isinstance(resp, dict):
+            ledger_append(
+                {
+                    "seq": seq,
+                    "kind": "topic",
+                    "topicId": resp.get("topicId"),
+                    "postId": resp.get("postId"),
+                    "submissionId": resp.get("submissionId"),
+                    "status": resp.get("status"),
+                    "title": wm_strip(body.get("title", "")),
+                    "at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                }
+            )
+        return resp
 
     def create_reply(self, topic_id, markdown, reply_to_post_number=None,
                      watermark=True, wm_position="end"):
-        """POST /api/v1/posts 发布回帖 (可楼中楼)。默认追加隐形水印组。"""
+        """POST /api/v1/posts 发布回帖 (可楼中楼)。默认追加隐形水印组 + 选中可见标记。"""
         body = {"topicId": topic_id, "markdown": markdown}
         if reply_to_post_number is not None:
             body["replyToPostNumber"] = reply_to_post_number
+        seq = None
         if watermark:
-            body["markdown"] = wm_apply(body["markdown"], position=wm_position)
+            seq = wm_next_seq()
+            body["markdown"] = wm_apply(body["markdown"], seq, position=wm_position, visible=True)
         key = str(uuid.uuid4())
         if self.dry_run:
             print(
@@ -401,12 +459,27 @@ class PickcatClient:
             )
             return {"dry_run": True, "idempotency_key": key, "body": body}
         self._throttle()
-        return self._request(
+        resp = self._request(
             "POST",
             POST_PATH,
             json_body=body,
             extra_headers={"Idempotency-Key": key},
         )
+        if watermark and isinstance(resp, dict):
+            ledger_append(
+                {
+                    "seq": seq,
+                    "kind": "reply",
+                    "topicId": topic_id,
+                    "postId": resp.get("postId"),
+                    "submissionId": resp.get("submissionId"),
+                    "status": resp.get("status"),
+                    "replyTo": reply_to_post_number,
+                    "text": wm_strip(markdown)[:80],
+                    "at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                }
+            )
+        return resp
 
     # ---------- 写后查询: 审核状态 ----------
     def list_post_submissions(self, status=None, topic_id=None, limit=20):

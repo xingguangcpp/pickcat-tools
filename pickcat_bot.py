@@ -398,17 +398,58 @@ def cmd_state(c, args):
 
 
 def cmd_audit(c, args):
-    """审计: 我发过的内容里, 哪些带隐形水印(= API 发的), 哪些没有(= 浏览器手发的),
-    以及写操作序号有没有缺口(缺 = 那次调用没落地/被删了)。"""
-    from pickcat_client import wm_decode, wm_strip
+    """审计: API 调用量(以本地账本为准) + 服务端水印是否还在 + 序号缺口。"""
+    from pickcat_client import wm_decode, wm_strip, ledger_read
 
     st = load_state()
     uid = client_uid(c)
-    seqs = []
-    api_posts = 0
-    unmarked = []
-    samples = []
+    ledger = ledger_read()
+    seqs = [int(r.get("seq") or 0) for r in ledger]
+    gaps = [n for n in range(1, max(seqs) + 1) if n not in seqs] if seqs else []
 
+    print("=" * 62)
+    print("【调用量审计】本地账本 (权威)")
+    print(f"  API 写操作总次数 : {len(ledger)}")
+    topics = sum(1 for r in ledger if r.get("kind") == "topic")
+    replies = sum(1 for r in ledger if r.get("kind") == "reply")
+    print(f"    其中 发帖 {topics} / 回帖 {replies}")
+    print(f"  序号范围         : {min(seqs) if seqs else '-'} ~ {max(seqs) if seqs else '-'}")
+    if gaps:
+        print(f"  ⚠ 序号缺口        : {gaps}  (这些序号没进账本: 调用失败/未发起)")
+    else:
+        print("  序号无缺口        : 每次调用都有账")
+    if ledger:
+        print("  最近几条:")
+        for r in ledger[-args.tail:]:
+            what = r.get("title") or r.get("text") or ""
+            print(f"    seq={r.get('seq'):<4} {r.get('at')}  {r.get('kind'):<6} "
+                  f"{r.get('status', ''):<16} {what[:34]}")
+
+    # 交叉验证: 抽查账本里的 postId, 看服务端存的原文里水印还在不在
+    print("-" * 62)
+    sample = ledger if args.all else ledger[-args.tail:]
+    ok = bad = 0
+    for r in sample:
+        pid = r.get("postId")
+        if not pid:
+            continue
+        try:
+            d = c._request("GET", f"/api/v1/posts/{pid}")
+            md = ((d or {}).get("request") or {}).get("markdown", "") or ""
+            found = wm_decode(md)
+            if found and found[0][0] == int(r.get("seq") or 0):
+                ok += 1
+            else:
+                bad += 1
+                print(f"  ✗ seq={r.get('seq')} 水印不符: {found}")
+        except PickcatError as e:
+            bad += 1
+            print(f"  ✗ seq={r.get('seq')} 查询失败: {e}")
+    print(f"  服务端水印抽查 ({len(sample)} 条): 一致 {ok} / 异常 {bad}")
+
+    # 反向扫描: 列表里带水印但不在账本的 (比如用别的工具发的)
+    print("-" * 62)
+    orphan = []
     for tid, info in st.get("watched", {}).items():
         try:
             items = posts_of(c, tid)
@@ -417,42 +458,17 @@ def cmd_audit(c, args):
         for it in items:
             if (it.get("author") or {}).get("id") != uid:
                 continue
-            html = it.get("cookedHtml") or ""
-            found = wm_decode(html)
-            if found:
-                api_posts += 1
-                seqs.extend(s for s, _, _ in found)
-                if len(samples) < 3:
-                    samples.append((info.get("title", "")[:22], found[0][0],
-                                    wm_strip(html)[:60]))
-            else:
-                unmarked.append((it.get("createdAt", "")[:10], info.get("title", "")[:24]))
-
-    uniq = sorted(set(seqs))
-    gaps = []
-    if uniq:
-        gaps = [n for n in range(1, max(uniq) + 1) if n not in uniq]
-
-    print("=" * 60)
-    print("【水印审计】我发过的内容")
-    print(f"  带水印 (水印上线后经 API 发的) : {api_posts} 条")
-    print(f"  无水印                          : {len(unmarked)} 条"
-          f"  (浏览器手发, 或水印功能上线前发的 —— 看日期区分)")
-    print(f"  水印序号                        : {uniq}")
-    print(f"  最大序号 (= 累计写操作次数)     : {max(uniq) if uniq else 0}")
-    if gaps:
-        print(f"  ⚠ 序号缺口                      : {gaps}  (这些调用没落地: 被拒/审核未过/被删)")
+            found = wm_decode(it.get("cookedHtml") or "")
+            for s, _, _ in found:
+                if s not in seqs:
+                    orphan.append((s, info.get("title", "")[:26]))
+    if orphan:
+        print(f"  ⚠ 列表里发现账本外的带水印内容 {len(orphan)} 条 (可能是别处发的):")
+        for s, t in orphan[:6]:
+            print(f"    - seq={s}  《{t}》")
     else:
-        print("  序号无缺口                      : 每次调用都有对应内容")
-    for t, s, txt in samples:
-        print(f"  样例: 《{t}》 seq={s} | {txt}")
-    if unmarked:
-        print("  无水印条目 (日期 / 标题):")
-        for d, t in unmarked[:8]:
-            print(f"    - {d}  《{t}》")
-        if len(unmarked) > 8:
-            print(f"    ... 还有 {len(unmarked) - 8} 条")
-    print("=" * 60)
+        print("  无账本外的带水印内容")
+    print("=" * 62)
 
 
 def cmd_verify(c, args):
@@ -509,7 +525,9 @@ def main():
     p.add_argument("--title", default="")
 
     sub.add_parser("state", help="打印状态")
-    sub.add_parser("audit", help="水印审计: API 发的 vs 浏览器手发的, 查序号缺口")
+    p = sub.add_parser("audit", help="水印审计: API 调用量(账本) + 服务端水印核对 + 序号缺口")
+    p.add_argument("--tail", type=int, default=5, help="抽查最近几条 (默认5)")
+    p.add_argument("--all", action="store_true", help="全量抽查")
     sub.add_parser("verify", help="验证水印能否在服务端存活")
 
     args = ap.parse_args()
