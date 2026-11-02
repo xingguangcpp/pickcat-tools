@@ -522,20 +522,21 @@ def cmd_reply(c, args):
     resp = c.create_reply(
         args.topic_id, args.body, reply_to_post_number=args.reply_to
     )
-    if getattr(args, "notify", None):
-        st2 = load_state()
-        handled = st2.setdefault("notified_handled", [])
-        if args.notify not in handled:
-            handled.append(args.notify)
-        save_state(st2)
-        print(f"[ok] 通知已标记处理: {args.notify}", file=sys.stderr)
     d["replies"] += 1
     # 顺手关注这个帖 (以后有人回我继续跟)
     w = st.setdefault("watched", {})
     if args.topic_id not in w:
         w[args.topic_id] = {"title": args.title or "", "last_seen": 0}
     w[args.topic_id]["last_seen"] = max_post_number(c, args.topic_id)
+    # 标记通知已处理。注意必须写进**同一个** st: 之前另开 st2 存一次,
+    # 会被下面这行 save_state(st) 覆盖掉, 导致下一轮重复回同一条。
+    if getattr(args, "notify", None):
+        handled = st.setdefault("notified_handled", [])
+        if args.notify not in handled:
+            handled.append(args.notify)
     save_state(st)
+    if getattr(args, "notify", None):
+        print(f"[ok] 通知已标记处理: {args.notify}", file=sys.stderr)
     print(json.dumps(resp, ensure_ascii=False))
     print("[ok] 已提交, 状态: " + str(resp.get("status")), file=sys.stderr)
 
