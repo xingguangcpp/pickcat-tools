@@ -478,10 +478,17 @@ def main():
     old = load_baseline()
     changes = diff_snapshots(old, snap)
 
-    SNAPSHOT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    SNAPSHOT_PATH.write_text(json.dumps(snap, ensure_ascii=False, indent=2),
-                             encoding="utf-8")
-    write_status_md(snap)
+    # 心跳: 即使没有语义变化, 也定期把"巡检时间"提交上去, 让仓库里的状态表
+    # 始终带着一个新鲜的时间戳 (否则它看起来像很久没巡检过)。
+    beat = heartbeat_due(force=args.always)
+
+    # 只有"确实要提交"时才重写生成物。否则每轮都重写一遍时间戳/耗时,
+    # 提交又只在有变化时发生 -> 工作区永远 dirty, 徒增 diff 噪音。
+    if changes or beat:
+        SNAPSHOT_PATH.parent.mkdir(parents=True, exist_ok=True)
+        SNAPSHOT_PATH.write_text(json.dumps(snap, ensure_ascii=False, indent=2),
+                                 encoding="utf-8")
+        write_status_md(snap)
     appended = append_changelog(changes, snap)
 
     print("-" * 56)
@@ -493,11 +500,8 @@ def main():
         print("与上次快照相比无变化。")
     if appended:
         print(f"已追加 -> {CHANGELOG_MD.name}")
-    print(f"已更新 -> {SNAPSHOT_PATH.name}, {STATUS_MD.name}")
-
-    # 心跳: 即使没有语义变化, 也定期把"巡检时间"提交上去, 让仓库里的状态表
-    # 始终带着一个新鲜的时间戳 (否则它看起来像很久没巡检过)。
-    beat = heartbeat_due(force=args.always)
+    if changes or beat:
+        print(f"已更新 -> {SNAPSHOT_PATH.name}, {STATUS_MD.name}")
     if not changes and beat:
         print(f"无变化, 但已到心跳间隔 ({_heartbeat_hours():g}h), 刷新巡检时间戳并提交。")
     maybe_autopush(changes, snap, heartbeat=beat)
