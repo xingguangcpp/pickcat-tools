@@ -23,6 +23,7 @@ pickcat_client.py — Pickcat 社区(编程猫) 非官方 API 客户端 (Python 
 
 import json
 import os
+import re
 import time
 import uuid
 import urllib.parse
@@ -315,6 +316,42 @@ def wm_strip(text):
     for _seq, s, e in sorted(wm_decode(text), key=lambda x: -x[1]):
         text = text[:s] + text[e:]
     return text.replace(WM_VISIBLE, "")
+
+
+# ---- 服务端禁外链: 发帖前自检, 别浪费水印序号 ----
+# 服务端对 markdown 里的站外链接直接 422 EXTERNAL_LINK_NOT_ALLOWED
+# (field=markdown, host=<域名>)。带点的 API 名 (entity.velocity / getGroupStorage)
+# 不算链接, 只有像 timeapi.io / example.com 这种真域名才会被拦。
+# 社区内部域名 (pickcat.dao3.fun) 本身允许, 但我们不主动发链接, 一律当外链拦掉最省事。
+_URL_RE = re.compile(
+    r"(?i)\b(?:https?://|ftp://|www\.)[^\s<>\"')\]]+"
+    r"|(?<![\w.@/-])(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+"
+    r"(?:com|cn|net|org|io|dev|me|app|xyz|top|info|co|edu|gov|ai|sh|gg|"
+    r"vip|site|online|tech|cloud|fun|store|live|space|icu|pro)\b"
+)
+
+
+def find_external_links(text):
+    """找出正文里的站外链接/域名, 返回去重后的 host 列表 (找不到返回 [])。
+
+    只用于**发请求前**自检: 服务端 422 会让整条写操作失败并白烧一个水印序号。
+    注意别误伤带点的 API 名 (entity.velocity / player.userKey / getGroupStorage):
+    上面正则要求 TLD 在白名单里, 这些标识符的"后缀"不在名单内, 因此不匹配。
+    """
+    if not text:
+        return []
+    hosts = []
+    for m in _URL_RE.finditer(text):
+        raw = m.group(0)
+        host = re.sub(r"(?i)^(?:https?://|ftp://|www\.)", "", raw)
+        host = host.split("/")[0].split("?")[0].split("#")[0].strip(".")
+        if not host or "." not in host:
+            continue
+        if host.lower().endswith("pickcat.dao3.fun"):
+            continue  # 社区自己的域名
+        if host.lower() not in hosts:
+            hosts.append(host.lower())
+    return hosts
 
 
 def wm_apply(text, seq=None, position="end", visible=False):
@@ -614,6 +651,22 @@ class PickcatClient:
         """GET /api/v1/tags -> 可发帖用的标签列表 (每项含 id / name 等)。"""
         return self._request("GET", TAGS_PATH)
 
+    # ---------- 护栏: 正文不得含站外链接 ----------
+    @staticmethod
+    def _assert_no_external_link(markdown):
+        """服务端对站外链接直接 422 EXTERNAL_LINK_NOT_ALLOWED, 会白烧一个水印序号。
+        所以在**消耗序号之前**自检并拦下来, 附带告诉调用方该怎么改写。"""
+        hosts = find_external_links(markdown)
+        if hosts:
+            raise PickcatError(
+                -1,
+                {
+                    "error": "护栏拦截: 正文含站外链接, 服务端会 422 EXTERNAL_LINK_NOT_ALLOWED",
+                    "hosts": hosts,
+                    "hint": "把外链改成纯文字描述 (只写项目名, 不写域名/URL), 或改用社区内已有的说法。",
+                },
+            )
+
     def create_topic(self, title, markdown, kind="DISCUSSION", tag_ids=None,
                      watermark=True, wm_position="end"):
         """
@@ -627,6 +680,8 @@ class PickcatClient:
         if not self.dry_run:
             self.check_participation()  # 等级闸门 (必须在消耗水印序号之前)
             check_quota("TOPIC_CREATE")  # 配额闸门: 发帖额度用尽就别浪费调用
+            self._assert_no_external_link(markdown)
+            self._assert_no_external_link(title)
         if not tag_ids and not self.dry_run:
             raise PickcatError(
                 -1,
@@ -686,6 +741,7 @@ class PickcatClient:
         if not self.dry_run:
             self.check_participation()  # 等级闸门
             check_quota("TOPIC_REPLY")  # 配额闸门 (按动作分: 评论额度独立)
+            self._assert_no_external_link(markdown)  # 站外链接闸门 (在消耗序号之前)
         seq = None
         if watermark:
             seq = wm_next_seq() if not self.dry_run else wm_peek_seq()
