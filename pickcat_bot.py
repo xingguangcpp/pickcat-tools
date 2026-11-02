@@ -51,9 +51,12 @@ FEED_SCAN = int(os.environ.get("PICKCAT_BOT_FEED_SCAN", "50"))
 # 最多给几个候选
 MAX_CANDIDATES = 5
 
+# 注意: 用 (?<![A-Za-z0-9]) 而不是 \b —— Python 的 \b 在中文里失效,
+# 像"大AI时代""用AI做"这种中文紧邻的写法匹配不到 (大 和 A 都是 \w, 中间没有边界)。
+# 但也不能去掉前视断言, 否则 "email"/"said" 里的 ai 会误命中。
 AI_RE = re.compile(
-    r"\bai\b|\bagent\b|\bllm\b|\bgpt\b|\bagi\b|大模型|智能体|提示词|prompt|"
-    r"深度学习|神经网络|机器学习|openai|claude|deepseek|chatbot|自动化|机器人",
+    r"(?<![A-Za-z0-9])(ai|agi|llm|gpt|agent)(?![A-Za-z0-9])|大模型|智能体|提示词|prompt|"
+    r"深度学习|神经网络|机器学习|openai|claude|deepseek|chatbot|自动化|机器人|豆包",
     re.I,
 )
 
@@ -388,36 +391,28 @@ def cmd_check(c, args):
         rc = meta.get("replyCount")
         trunc = meta.get("repliesTruncated")
         # 注意: repliesTruncated 在这 API 上基本常驻 true, 不能单独当告警依据。
-        # 真正可信的信号有两条:
-        #   (a) replyCount 比我们实际看到的楼层数还大 —— 确定有没显示出来的回复;
-        #   (b) replyCount 增长了, 但新增楼层数(**含我自己发的**)撑不起这个增量。
-        # 早期版本用 (b) 时只数"别人发的新楼层", 自己回一句就会把 replyCount 推高,
-        # 于是自己回帖后必然误报"列表被截断" —— 已改为用 new_floors(含自己)。
-        prev_rc = info.get("reply_count")
-        if rc is not None and prev_rc is not None and rc > prev_rc:
-            delta = rc - prev_rc
-            if new_floors < delta:
-                anomalies.append(
-                    f"《{info.get('title','')[:24]}》replyCount {prev_rc}->{rc} (+{delta}) "
-                    f"但只看到 {new_floors} 个新楼层 "
-                    f"(repliesTruncated={trunc}) —— 可能有未显示的回复, 别当成'没人回'"
-                )
-        if rc is not None:
-            info["reply_count"] = rc
+        #
+        # **唯一可靠的截断信号: replyCount 比我们实际取到的楼层数还大。**
+        # posts_of 已经翻页取全, 实测 32 个关注帖里 31 个满足 rc == len(items)
+        # (唯一例外是一个有 19 个楼层但 rc=19 而 items=20 的帖, 是被删楼导致的, 不是截断)。
+        # 所以 rc > len(items) 才是真截断。
+        #
+        # 早期版本用的是"replyCount 增量 vs 新楼层数", 这个判据是错的:
+        # last_seen 在我每次回帖后被推到该帖最大楼层号, 于是"别人新发的楼"
+        # 会被算进 last_seen 之内而不计入 new_floors —— 只要该帖有人在我回帖后
+        # 又发了楼, 就会误报"列表被截断"(11-02 实测: 鲸鱼娘帖 rc 6->9 但只见 1 层新楼)。
+        # 结论: 增量判据永远误报, 只有绝对值判据 (rc > len(items)) 可靠。
         if rc is not None and rc > len(items):
             anomalies.append(
-                f"《{info.get('title','')[:24]}》replyCount={rc} > 返回 {len(items)} 条 "
-                f"(列表不完整)"
+                f"《{info.get('title','')[:24]}》replyCount={rc} > 实际取到 {len(items)} 条 "
+                f"(列表被截断) —— 别当成'没人回'"
             )
+        if rc is not None:
+            info["reply_count"] = rc
         la = meta.get("lastActivityAt")
         prev_la = info.get("last_activity_at")
-        # 同理: 我自己发帖也会推高 lastActivityAt, 所以判据要用 new_floors(含自己),
-        # 而不是"有没有别人回我"。
-        if la and prev_la and la > prev_la and new_floors == 0:
-            anomalies.append(
-                f"《{info.get('title','')[:24]}》lastActivityAt 有更新但列表里没有新楼层 "
-                f"(列表可能被截断)"
-            )
+        # lastActivityAt 变化本身不说明有隐藏楼层 (改标题/编辑也算活动),
+        # 只有配合上面的 rc > len(items) 才有意义, 这里不再单独告警。
         if la:
             info["last_activity_at"] = la
     # ② AI 帖候选 (排除已关注 / 已评论过)
@@ -665,7 +660,9 @@ def cmd_notify(c, args):
     data = c._request("GET", f"/api/v1/notifications?limit={args.limit}")
     items = data.get("items") if isinstance(data, dict) else (data or [])
     pending = []
+    stale = []
     kinds = {}
+    uid = client_uid(c)
     for it in items:
         t = it.get("type")
         kinds[t] = kinds.get(t, 0) + 1
@@ -675,7 +672,7 @@ def cmd_notify(c, args):
         actor = d.get("actor") or {}
         topic = d.get("topic") or {}
         post = d.get("post") or {}
-        pending.append({
+        row = {
             "notificationId": it.get("id"),
             "actor": actor.get("username"),
             "actorId": actor.get("id"),
@@ -684,16 +681,41 @@ def cmd_notify(c, args):
             "postNumber": post.get("postNumber"),
             "postId": post.get("id"),
             "at": it.get("createdAt"),
-        })
+        }
+        # **通知 ≠ 还没回**: 通知只说明"有人回过我", 不管我后来回没回。
+        # 早期版本直接把所有未见过的 REPLY_CREATED 当待回复, 于是那些我在
+        # 上一轮已经回过的楼层, 会因为漏传 --notify 而每轮重复冒出来
+        # (11-02 实测: 4 条待回复里 3 条是 11-01 就已回过的陈旧通知)。
+        # 判据 = 那个楼层我是否已经接过话 (服务端楼层 + 本地账本, 见 answered_floor_numbers)。
+        try:
+            answered = answered_floor_numbers(c, row["topicId"], uid)
+        except Exception:
+            answered = set()
+        if row["postNumber"] is not None and int(row["postNumber"]) in answered:
+            row["answered"] = True
+            stale.append(row)
+        else:
+            row["answered"] = False
+            pending.append(row)
+    # 陈旧通知顺手标记掉, 免得每轮都重复冒出来白耗回复额度。
+    if stale:
+        for row in stale:
+            if row["notificationId"] not in seen:
+                seen.append(row["notificationId"])
+        save_state(st)
     print("=" * 62)
     print(f"[通知] 最近 {len(items)} 条: {kinds}")
     if pending:
-        print(f"[待回复] {len(pending)} 条 (确认回过我的):")
+        print(f"[待回复] {len(pending)} 条 (确认回过我的, 且我还没回过):")
         for p in pending:
             print(f"  {p['actor']} 在《{p['topicTitle']}》#{p['postNumber']} 回了我")
             print(f"    topicId={p['topicId']}  notificationId={p['notificationId']}")
     else:
         print("[待回复] 0 条 (没有未处理的回复通知)")
+    if stale:
+        print(f"[已回过] {len(stale)} 条 (陈旧通知: 我早已接过话, 已自动标记处理)")
+        for p in stale:
+            print(f"  {p['actor']} 《{p['topicTitle']}》#{p['postNumber']}")
     print("=" * 62)
 
 
