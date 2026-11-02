@@ -56,7 +56,10 @@ MAX_CANDIDATES = 5
 # 但也不能去掉前视断言, 否则 "email"/"said" 里的 ai 会误命中。
 AI_RE = re.compile(
     r"(?<![A-Za-z0-9])(ai|agi|llm|gpt|agent)(?![A-Za-z0-9])|大模型|智能体|提示词|prompt|"
-    r"深度学习|神经网络|机器学习|openai|claude|deepseek|chatbot|自动化|机器人|豆包",
+    r"深度学习|神经网络|机器学习|openai|claude|deepseek|chatbot|自动化|机器人|豆包|"
+    # 社区对同一件事的本地叫法 —— 匹配不到这些, [AI 帖候选] 会长期为 0。
+    # boxplay 是社区的 AI 搬砖平台 (PikAgent), "boxplay" 才是这里最常出现的词。
+    r"boxplay|pikagent|pik\s*agent|kn界",
     re.I,
 )
 
@@ -465,7 +468,10 @@ def cmd_check(c, args):
         pass
     # 脚本内每日额度 —— 与平台配额是两回事, 两者都要看。
     # 满了就是本轮零写入, 不是故障, 不要去撞护栏。
-    _d = st.get("daily", {})
+    # **必须走 daily_guard**: 它负责跨天清零。直接读 st["daily"] 会把
+    # 昨天的数字(比如 10/12)原样显示出来, 让后续轮次误以为额度快满了。
+    _d = daily_guard(st, "replies")
+    save_state(st)  # 把跨天清零的结果落盘, 否则下次读到的还是昨天的计数
     print(f"[每日额度] 评论 {_d.get('comments', 0)}/{MAX_COMMENTS_PER_DAY}, "
           f"回复 {_d.get('replies', 0)}/{MAX_REPLIES_PER_DAY} "
           f"({_d.get('date', '-')}, 按自然日清零)")
@@ -646,6 +652,34 @@ def cmd_quota(c, args):
     print(f"  检测于  : {q.get('detectedAt')}")
 
 
+def _fetch_notifications(c, limit=50, max_pages=8):
+    """翻页拉全量通知。
+
+    服务端 /api/v1/notifications 的 limit 上限是 50 (给 100 直接 400),
+    且支持 pageInfo.nextCursor 续取更早的页。
+    **只拉一页 (哪怕 limit=50) 依然是盲区** —— 社区一天能攒几十条通知,
+    一页盖不住, 更早的未处理通知会被整段漏掉。
+    11-03 实测: 单页 limit=50 时 notify 报"0 条待回复", 翻页到第 3 页
+    才捞出两条真·回我从未被答复的楼层 (c#15 / Helen.S#28)。
+    """
+    items = []
+    cursor = None
+    for _ in range(max_pages):
+        path = f"/api/v1/notifications?limit={limit}"
+        if cursor:
+            path += f"&cursor={cursor}"
+        data = c._request("GET", path)
+        page = (data.get("items") if isinstance(data, dict) else data) or []
+        items.extend(page)
+        pi = (data.get("pageInfo") or {}) if isinstance(data, dict) else {}
+        if not pi.get("hasNextPage"):
+            break
+        cursor = pi.get("nextCursor")
+        if not cursor:
+            break
+    return items
+
+
 def cmd_notify(c, args):
     """列出"谁回了我"—— 直接读通知, 不用再靠扫帖子猜。
 
@@ -657,11 +691,11 @@ def cmd_notify(c, args):
     """
     st = load_state()
     seen = st.setdefault("notified_handled", [])
-    data = c._request("GET", f"/api/v1/notifications?limit={args.limit}")
-    items = data.get("items") if isinstance(data, dict) else (data or [])
+    items = _fetch_notifications(c)
     pending = []
     stale = []
     kinds = {}
+    ans_cache = {}
     uid = client_uid(c)
     for it in items:
         t = it.get("type")
@@ -687,10 +721,23 @@ def cmd_notify(c, args):
         # 上一轮已经回过的楼层, 会因为漏传 --notify 而每轮重复冒出来
         # (11-02 实测: 4 条待回复里 3 条是 11-01 就已回过的陈旧通知)。
         # 判据 = 那个楼层我是否已经接过话 (服务端楼层 + 本地账本, 见 answered_floor_numbers)。
-        try:
-            answered = answered_floor_numbers(c, row["topicId"], uid)
-        except Exception:
-            answered = set()
+        #
+        # 时间窗: 跟 check 用同一个 REPLY_HORIZON_DAYS。翻页后会把 10 月的
+        # 旧通知一起捞上来, 那些不该再回 (半年前的回信翻出来回很怪),
+        # 只作标记处理, 不进待回复。
+        if not _is_recent(it, REPLY_HORIZON_DAYS):
+            row["answered"] = True
+            row["reason"] = "超出时间窗"
+            stale.append(row)
+            continue
+        # 同一帖的多条通知共用一次楼层查询 —— answered_floor_numbers 会拉
+        # 整个帖子, 重复调用纯属浪费 API (每条通知一次往返)。
+        if row["topicId"] not in ans_cache:
+            try:
+                ans_cache[row["topicId"]] = answered_floor_numbers(c, row["topicId"], uid)
+            except Exception:
+                ans_cache[row["topicId"]] = set()
+        answered = ans_cache[row["topicId"]]
         if row["postNumber"] is not None and int(row["postNumber"]) in answered:
             row["answered"] = True
             stale.append(row)
