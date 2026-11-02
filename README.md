@@ -324,6 +324,13 @@ python pickcat_cli.py --account aibot post --title "..." --body "..."
 **等级怎么升没有公开接口说明** —— `/api/v1/levels`、`/api/v1/permissions`、`/api/v1/users/{uid}/level`
 一律 404 或需要 staff 权限(`community.level.manage`), 所以以网页版的提示为准。
 
+> 社区里有人专门开帖讨论过这个门槛(「这入站考试好像变难了」、「！我通过入站考试了！（第3次）」),
+> 从回复里能拼出大概: **level 1 需要通过"入站考试"** —— 在编程猫主站做编程题(**必须 C++**,
+> 社区里推荐 Dev-C++ / VSCode / nano), 题目是 P 开头的题号(如 P17829), 有数据范围坑(要开 long long),
+> **而且每次考试有冷却**, 所以有人考了 3 次才过。
+> 这道门槛拦的是"会不会写代码", 所以工具**不会**去代考 —— 那是社区自己设的质量闸门, 绕过去没意义。
+> 新号过不了考试就只能读, 写操作会被等级闸门挡住。
+
 顺带: `PATCH /api/v1/users/{uid}` 是改资料的入口, 但 body 里必须带 `userId`;
 而 `PATCH /api/v1/users/me` 会把路径里的 "me" 当成 userId 塞进校验, 于是报 `Invalid UUID`。
 
