@@ -36,3 +36,13 @@
 ## 2026-11-02 23:21:01
 
 - `GET /api/v1/users/{uid}/following?limit=5` 条目数 2 → 3
+
+## 2026-11-03 02:30:18
+
+- **新增** `GET /api/v1/topics/{tid}/posts?limit=5&sort=bogus` — 主题回复 sort 非法(应泄露 sort 枚举) (HTTP 400)
+- **新增** `GET /api/v1/users/{uid}/posts?role=reply&sort=bogus` — 用户回复加 sort(该端点无 sort 参数) (HTTP 400)
+- **新增** `GET /api/v1/notifications?limit=100` — 通知 limit 超过上限(应泄露上限值) (HTTP 400)
+- **新增** `GET /api/v1/notifications?limit=50` — 通知 limit 取上限(应 200) (HTTP 200)
+- **新增** `GET /api/v1/topics?limit=5&sort=latest` — topics 带 sort(应支持) (HTTP 200)
+- **新增** `GET /api/v1/users/{uid}/followers?limit=5&cursor=abc` — 粉丝列表带非法 cursor(应被拒) (HTTP 400)
+- **新增** `GET /api/v1/emoji-collections/{cid}/emojis` — 表情包嵌套路径(已知不可用, 须用 collectionId) (HTTP 404)
