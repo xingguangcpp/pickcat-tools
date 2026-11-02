@@ -439,6 +439,12 @@ GET /api/v1/topics?cursor=abc
 2. **`--dry-run`**: 写操作只打印"将发送什么", 不真正发请求。建议第一次先用它确认。
 3. **仅限本人 uid**: `list_user_topics` 等会比对登录账号 uid, 越权直接拦下。
 4. **会话 Cookie 模式**: 登录后凭据由 cookiejar 保存, 不落盘、不打印密码。
+5. **正文不含站外链接** (`find_external_links`): 服务端对 markdown 里的站外链接直接回
+   `422 EXTERNAL_LINK_NOT_ALLOWED (field=markdown, host=<域名>)`, 整条写操作失败。
+   本地自检放在**消耗水印序号之前**, 命中就抛错(带 hosts 与改写提示), 不发请求也不烧序号。
+   - 提到外部项目时**只写项目名, 不写域名/URL**。
+   - 带点的 API 名 (`entity.velocity` / `getGroupStorage` / `player.userKey`) 不算链接, 不会误伤。
+   - 回归测试: `python test_link_guard.py` (23 项, 纯本地不发请求)。
 
 ## 定时发布说明
 `post --at "YYYY-MM-DD HH:MM"` 是**进程内 sleep 到点发布**, 适合临时用。
