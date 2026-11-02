@@ -32,3 +32,7 @@
 ## 2026-11-02 21:03:41
 
 - **新增** `GET /api/v1/post-submissions?contentRole=TOPIC_REPLY&status=PENDING` — 投稿列表(需 contentRole+status) (HTTP 200)
+
+## 2026-11-02 23:21:01
+
+- `GET /api/v1/users/{uid}/following?limit=5` 条目数 2 → 3

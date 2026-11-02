@@ -1,6 +1,6 @@
 # API 实时状态 (自动生成)
 
-> 由 `pickcat_probe.py` 于 **2026-11-02 21:03:41** 自动生成, 不要手改。
+> 由 `pickcat_probe.py` 于 **2026-11-02 23:21:01** 自动生成, 不要手改。
 > 手写补充请放 README 的「已知 API 坑」一节; 本文件只反映**当前探测到的真实状态**。
 
 - 服务可用: **是**
@@ -8,30 +8,30 @@
 
 | 端点 | 说明 | 鉴权 | 状态 | 耗时 | 条目 | 备注 |
 |---|---|---|---|---|---|---|
-| `GET /api/v1/topics?limit=5` | 社区帖子 feed | 公开 | ✅ 200 | 128ms | 5 |  |
-| `GET /api/v1/topics/{tid}` | 主题详情 | 公开 | ✅ 200 | 236ms | None |  |
-| `GET /api/v1/topics/{tid}/posts?limit=5` | 主题下的回复 | 公开 | ✅ 200 | 100ms | 0 |  |
-| `GET /api/v1/topics/{tid}/posts?limit=5&sort=latest` | 主题回复(按最新排序) | 公开 | ✅ 200 | 132ms | 0 |  |
-| `GET /api/v1/posts/{pid}` | 单条回复详情 | 公开 | ✅ 200 | 160ms | None |  |
-| `GET /api/v1/tags` | 标签列表 | 公开 | ✅ 200 | 412ms | 11 |  |
-| `GET /api/v1/tags?limit=20` | 标签带 limit(应被拒: 未知参数) | 公开 | ⚠️ 400 | 234ms | - | VALIDATION_FAILED |
-| `GET /api/v1/users/{uid}` | 用户资料(含等级/统计) | 公开 | ✅ 200 | 124ms | None |  |
-| `GET /api/v1/post-submissions?contentRole=TOPIC_REPLY&status=PENDING` | 投稿列表(需 contentRole+status) | 需登录 | ✅ 200 | 118ms | 0 |  |
-| `GET /api/v1/users/{uid}/posts?role=reply&limit=5` | 用户回复(role=reply) | 公开 | ✅ 200 | 172ms | 5 |  |
-| `GET /api/v1/users/{uid}/posts?role=bogus` | 用户回复(role 非法, 应报错) | 公开 | ⚠️ 400 | 164ms | - | VALIDATION_FAILED {"role": ["Invalid input: expected \"reply\""]} |
-| `GET /api/v1/users/{uid}/followers?limit=5` | 粉丝列表 | 公开 | ✅ 200 | 105ms | 5 |  |
-| `GET /api/v1/users/{uid}/following?limit=5` | 关注列表 | 公开 | ✅ 200 | 151ms | 2 |  |
-| `GET /api/v1/notifications?limit=10` | 通知列表 | 公开 | ✅ 200 | 458ms | 10 |  |
-| `GET /api/v1/works?limit=5` | 作品列表 | 公开 | ✅ 200 | 167ms | 5 |  |
-| `GET /api/v1/badges` | 徽章列表 | 公开 | ✅ 200 | 155ms | 8 |  |
-| `GET /api/v1/emoji-collections` | 表情包集列表 | 公开 | ✅ 200 | 242ms | 9 |  |
-| `GET /api/v1/emojis?collectionId={cid}` | 表情包(需 collectionId) | 公开 | ✅ 200 | 130ms | 12 |  |
-| `GET /api/v1/session` | 会话(需登录) | 需登录 | ✅ 200 | 135ms | None |  |
-| `GET /api/v1/users/{uid}/topics?limit=5` | 我自己的主题(需登录) | 需登录 | ✅ 200 | 124ms | 5 |  |
-| `GET /api/v1/post-submissions/{sid}` | 投稿审核状态(需登录) | 需登录 | ✅ 200 | 101ms | None |  |
-| `GET /api/v1/__probe_nonexistent__` | 不存在的端点(应 404) | 公开 | ❌ 404 | 102ms | - | ROUTE_NOT_FOUND |
-| `GET /api/v1/posts?limit=5` | posts 列表(已知不可用) | 公开 | ❌ 404 | 91ms | - | ROUTE_NOT_FOUND |
-| `GET /api/v1/topics?cursor=abc` | 非法 cursor | 公开 | ⚠️ 400 | 117ms | - | INVALID_CURSOR |
+| `GET /api/v1/topics?limit=5` | 社区帖子 feed | 公开 | ✅ 200 | 90ms | 5 |  |
+| `GET /api/v1/topics/{tid}` | 主题详情 | 公开 | ✅ 200 | 121ms | None |  |
+| `GET /api/v1/topics/{tid}/posts?limit=5` | 主题下的回复 | 公开 | ✅ 200 | 99ms | 0 |  |
+| `GET /api/v1/topics/{tid}/posts?limit=5&sort=latest` | 主题回复(按最新排序) | 公开 | ✅ 200 | 135ms | 0 |  |
+| `GET /api/v1/posts/{pid}` | 单条回复详情 | 公开 | ✅ 200 | 120ms | None |  |
+| `GET /api/v1/tags` | 标签列表 | 公开 | ✅ 200 | 76ms | 11 |  |
+| `GET /api/v1/tags?limit=20` | 标签带 limit(应被拒: 未知参数) | 公开 | ⚠️ 400 | 67ms | - | VALIDATION_FAILED |
+| `GET /api/v1/users/{uid}` | 用户资料(含等级/统计) | 公开 | ✅ 200 | 116ms | None |  |
+| `GET /api/v1/post-submissions?contentRole=TOPIC_REPLY&status=PENDING` | 投稿列表(需 contentRole+status) | 需登录 | ✅ 200 | 90ms | 0 |  |
+| `GET /api/v1/users/{uid}/posts?role=reply&limit=5` | 用户回复(role=reply) | 公开 | ✅ 200 | 114ms | 5 |  |
+| `GET /api/v1/users/{uid}/posts?role=bogus` | 用户回复(role 非法, 应报错) | 公开 | ⚠️ 400 | 77ms | - | VALIDATION_FAILED {"role": ["Invalid input: expected \"reply\""]} |
+| `GET /api/v1/users/{uid}/followers?limit=5` | 粉丝列表 | 公开 | ✅ 200 | 463ms | 5 |  |
+| `GET /api/v1/users/{uid}/following?limit=5` | 关注列表 | 公开 | ✅ 200 | 97ms | 3 |  |
+| `GET /api/v1/notifications?limit=10` | 通知列表 | 公开 | ✅ 200 | 112ms | 10 |  |
+| `GET /api/v1/works?limit=5` | 作品列表 | 公开 | ✅ 200 | 84ms | 5 |  |
+| `GET /api/v1/badges` | 徽章列表 | 公开 | ✅ 200 | 229ms | 8 |  |
+| `GET /api/v1/emoji-collections` | 表情包集列表 | 公开 | ✅ 200 | 142ms | 9 |  |
+| `GET /api/v1/emojis?collectionId={cid}` | 表情包(需 collectionId) | 公开 | ✅ 200 | 96ms | 12 |  |
+| `GET /api/v1/session` | 会话(需登录) | 需登录 | ✅ 200 | 126ms | None |  |
+| `GET /api/v1/users/{uid}/topics?limit=5` | 我自己的主题(需登录) | 需登录 | ✅ 200 | 84ms | 5 |  |
+| `GET /api/v1/post-submissions/{sid}` | 投稿审核状态(需登录) | 需登录 | ✅ 200 | 114ms | None |  |
+| `GET /api/v1/__probe_nonexistent__` | 不存在的端点(应 404) | 公开 | ❌ 404 | 84ms | - | ROUTE_NOT_FOUND |
+| `GET /api/v1/posts?limit=5` | posts 列表(已知不可用) | 公开 | ❌ 404 | 93ms | - | ROUTE_NOT_FOUND |
+| `GET /api/v1/topics?cursor=abc` | 非法 cursor | 公开 | ⚠️ 400 | 88ms | - | INVALID_CURSOR |
 
 ## 怎么读这张表
 
