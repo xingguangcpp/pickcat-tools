@@ -295,6 +295,38 @@ python pickcat_bot.py reply --topic-id ... --reply-to 9 --body "..." --notify <�
 #                                                                        └ 回完顺手标记已处理
 ```
 
+## 社区等级门槛: level ≥ 1 才能写
+
+实测**发帖和评论都要求社区等级 ≥ 1**。新注册账号是 level 0, 连评论都会被拒:
+
+```
+POST /api/v1/posts
+-> 403 PARTICIPATION_LEVEL_REQUIRED
+   {"currentLevel": 0, "requiredLevel": 1}
+```
+
+等级和统计是**可读**的 —— `GET /api/v1/users/{uid}` 会返回:
+
+```json
+"level": {"current": 0},
+"stats": {"followers": 0, "following": 0, "topics": 0, "replies": 0}
+```
+
+所以工具能做**写前预检**: `check_participation()` 发现等级不够就直接抛错,
+不浪费一次调用去换 403, 也不会白白消耗水印序号(闸门放在消耗序号**之前**):
+
+```bash
+python pickcat_cli.py --account aibot post --title "..." --body "..."
+# -> 发布失败: 社区等级不足: 当前 0, 需要 1
+#    hint: 新号需先完成社区的入驻流程(在网页版看看等级/任务提示)升到 level 1
+```
+
+**等级怎么升没有公开接口说明** —— `/api/v1/levels`、`/api/v1/permissions`、`/api/v1/users/{uid}/level`
+一律 404 或需要 staff 权限(`community.level.manage`), 所以以网页版的提示为准。
+
+顺带: `PATCH /api/v1/users/{uid}` 是改资料的入口, 但 body 里必须带 `userId`;
+而 `PATCH /api/v1/users/me` 会把路径里的 "me" 当成 userId 塞进校验, 于是报 `Invalid UUID`。
+
 ## 已知 API 坑 (实测, 别重复踩)
 
 | 坑 | 表现 | 对策 |
@@ -346,6 +378,7 @@ python pickcat_bot.py reply --topic-id ... --reply-to 9 --body "..." --notify <�
 | `GET /api/v1/emojis?collectionId=<uuid>` | 公开 | 某个集合里的表情 (必须带 collectionId) |
 | `POST /api/v1/posts` | 需登录 | 发帖/回帖 (需 Idempotency-Key, 返回 202 异步审核) |
 | `GET /api/v1/post-submissions/{id}` | 需登录 | 查审核状态 (PENDING_PROVIDER → PENDING_PUBLICATION → PUBLISHED) |
+| `GET /api/v1/post-submissions?contentRole=&status=` | 需登录 | 投稿列表 (**必须带这两个参数**; `contentRole`∈TOPIC_FIRST_POST/TOPIC_REPLY/WORK_COMMENT, `status`∈PENDING/REJECTED) |
 
 **参数校验极严, 而且会泄露 schema**: 服务端用 Zod 校验 query, **未知参数直接 400**。
 所以 `?limit=20` 在 `topics` 上能用、在 `tags` 上就 400 —— 说明 `tags` 没这个参数。

@@ -40,6 +40,11 @@ USER_AGENT = "pickcat-tools/0.1 (+self-management)"
 POST_PATH = "/api/v1/posts"
 TAGS_PATH = "/api/v1/tags"
 
+# 社区等级门槛: 实测 level 0 的账号发帖/评论都会被拒
+# (403 PARTICIPATION_LEVEL_REQUIRED, details 里给 currentLevel/requiredLevel)。
+# 新注册账号是 level 0, 补全资料/完成入驻流程后才会升到 level 1。
+PARTICIPATION_LEVEL_REQUIRED = 1
+
 # ---------------------------------------------------------------------------
 # 隐形水印: 标记"这条内容是走 API 发的", 并给每次写操作编号
 #
@@ -558,6 +563,41 @@ class PickcatClient:
             params={"role": role, "limit": limit},
         )
 
+    def get_profile(self, user_id=None):
+        """GET /api/v1/users/{uid} -> 用户资料, 含 level.current 与 stats。
+
+        这是判断"能不能发"的权威来源(比撞 403 再看报错快)。
+        """
+        if user_id is None:
+            user_id = self._session_user_id or (self.get_session().get("user") or {}).get("id")
+        return self._request("GET", f"/api/v1/users/{user_id}")
+
+    def get_my_level(self):
+        """当前账号的社区等级 (int)。取不到时返回 None。"""
+        try:
+            prof = self.get_profile()
+            lvl = prof.get("level") or {}
+            if isinstance(lvl, dict):
+                return lvl.get("current")
+            return lvl
+        except Exception:
+            return None
+
+    def check_participation(self, required=PARTICIPATION_LEVEL_REQUIRED):
+        """写操作前的等级闸门: level 0 直接抛错, 别浪费一次调用去换 403。"""
+        lvl = self.get_my_level()
+        if lvl is None or lvl >= required:
+            return lvl
+        raise PickcatError(
+            -3,
+            {
+                "error": f"社区等级不足: 当前 {lvl}, 需要 {required}",
+                "currentLevel": lvl,
+                "requiredLevel": required,
+                "hint": "新号需先完成社区的入驻流程(在网页版看看等级/任务提示)升到 level 1",
+            },
+        )
+
     def get_topic(self, topic_id):
         return self._request("GET", f"/api/v1/topics/{topic_id}")
 
@@ -585,6 +625,7 @@ class PickcatClient:
         """
         tag_ids = tag_ids or []
         if not self.dry_run:
+            self.check_participation()  # 等级闸门 (必须在消耗水印序号之前)
             check_quota("TOPIC_CREATE")  # 配额闸门: 发帖额度用尽就别浪费调用
         if not tag_ids and not self.dry_run:
             raise PickcatError(
@@ -643,6 +684,7 @@ class PickcatClient:
         if reply_to_post_number is not None:
             body["replyToPostNumber"] = reply_to_post_number
         if not self.dry_run:
+            self.check_participation()  # 等级闸门
             check_quota("TOPIC_REPLY")  # 配额闸门 (按动作分: 评论额度独立)
         seq = None
         if watermark:
