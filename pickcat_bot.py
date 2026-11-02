@@ -209,6 +209,29 @@ def max_post_number(c, topic_id):
     return max([int(i.get("postNumber") or 0) for i in items] or [0])
 
 
+def _advance_last_seen(c, topic_id, watched):
+    """发帖/回帖后推进该帖的"已处理楼层水位"。
+
+    **别直接写 max_post_number**: 写操作是异步审核的 (POST 返回 202,
+    楼层要过审才出现在服务端)。刚发完立刻去查楼层, 我的新楼层还没上线,
+    于是查到的是**发帖前**的水位 —— 对一个全新的帖子就是 0。
+
+    水位记成 0 的后果: 下一轮 check 里的 `pn <= last` 过滤完全失效,
+    这个帖子的所有楼层都会被当成"新楼层"重新冒出来刷屏 (BoxPlay 帖 60 楼
+    那种噪声就是这么来的)。不误判回我, 但每轮都要重新读一遍, 白耗。
+
+    修法: 取 max(服务端当前最大楼层, 发帖前的水位 + 1) ——
+    我这一层至少会落在"发帖前水位 + 1"这个位置, 就算它还没过审上线,
+    水位也不会退回到 0。
+    """
+    try:
+        server_max = max_post_number(c, topic_id)
+    except PickcatError:
+        server_max = 0
+    prev = int((watched.get(topic_id) or {}).get("last_seen") or 0)
+    return max(server_max, prev + 1)
+
+
 def my_top_level_count(c, topic_id, uid):
     """我在该帖发过的顶层评论数 (顶层 = replyToPostNumber 指向首楼或为空)。"""
     n = 0
@@ -528,7 +551,7 @@ def cmd_reply(c, args):
     w = st.setdefault("watched", {})
     if args.topic_id not in w:
         w[args.topic_id] = {"title": args.title or "", "last_seen": 0}
-    w[args.topic_id]["last_seen"] = max_post_number(c, args.topic_id)
+    w[args.topic_id]["last_seen"] = _advance_last_seen(c, args.topic_id, w)
     # 标记通知已处理。注意必须写进**同一个** st: 之前另开 st2 存一次,
     # 会被下面这行 save_state(st) 覆盖掉, 导致下一轮重复回同一条。
     if getattr(args, "notify", None):
@@ -563,7 +586,7 @@ def cmd_comment(c, args):
     w = st.setdefault("watched", {})
     if args.topic_id not in w:
         w[args.topic_id] = {"title": args.title or "", "last_seen": 0}
-    w[args.topic_id]["last_seen"] = max_post_number(c, args.topic_id)
+    w[args.topic_id]["last_seen"] = _advance_last_seen(c, args.topic_id, w)
     save_state(st)
     print(json.dumps(resp, ensure_ascii=False))
     print("[ok] 已提交, 状态: " + str(resp.get("status")), file=sys.stderr)
@@ -777,6 +800,136 @@ def cmd_state(c, args):
         print(f"  - {info.get('title', '')[:40]}  {tid}  last_seen={info.get('last_seen')}")
 
 
+def cmd_reconcile(c, args):
+    """独立全量对账: 用**第二套判据**复核"到底还有没有人回我"。
+
+    为什么需要它: notify / check 都是"单侧视图", 各自有盲区 ——
+    notify 依赖 notified_handled 标记 + 7 天时间窗, check 依赖 last_seen 水位。
+    历史上多次出现"报告 0 条待回复, 实际有人回了没被看见"。
+
+    本命令**绕开那两个状态**, 只用一个客观判据: **那个楼层我是否已经接过话**
+    (服务端我的楼层 replyToPostNumber + 本地账本 replyTo, 见 answered_floor_numbers)。
+    两路数据源取并集:
+      (1) 通知侧: 全量翻页拉 REPLY_CREATED, 逐条查是否已回过;
+      (2) 帖子侧: 扫我的全部主题 + 所有关注帖, 找"父楼层作者是我"的楼。
+    只读, 不写任何状态 —— 用来验证 notify/check 的结论可不可信。
+    """
+    st = load_state()
+    seen = set(st.get("notified_handled") or [])
+    watched = st.get("watched") or {}
+    uid = client_uid(c)
+
+    # ---------- (1) 通知侧 ----------
+    items = _fetch_notifications(c)
+    by_floor = {}
+    for it in items:
+        if it.get("type") != "REPLY_CREATED":
+            continue
+        d = it.get("details") or {}
+        topic = d.get("topic") or {}
+        post = d.get("post") or {}
+        pn = post.get("postNumber")
+        tid = topic.get("id")
+        if not tid or pn is None:
+            continue
+        by_floor.setdefault((tid, int(pn)), []).append({
+            "nid": it.get("id"),
+            "actor": (d.get("actor") or {}).get("username"),
+            "title": topic.get("title"),
+            "at": it.get("createdAt"),
+            "seen": it.get("id") in seen,
+        })
+
+    ans_cache = {}
+    merged = {}
+    for (tid, pn), rows in by_floor.items():
+        if tid not in ans_cache:
+            try:
+                ans_cache[tid] = answered_floor_numbers(c, tid, uid)
+            except Exception:
+                ans_cache[tid] = set()
+        if pn in ans_cache[tid]:
+            continue  # 我已经接过话了
+        r = rows[0]
+        merged[(tid, pn)] = {
+            "src": "通知", "topicId": tid, "pn": pn, "actor": r["actor"],
+            "title": r["title"], "at": r["at"], "nid": r["nid"],
+            "seen": r["seen"], "recent": _is_recent(
+                next((x for x in items if x.get("id") == r["nid"]), {}),
+                REPLY_HORIZON_DAYS),
+        }
+
+    # ---------- (2) 帖子侧 ----------
+    topics = {}
+    try:
+        for t in my_topics(c, uid, limit=50):
+            topics[t["id"]] = t.get("title", "")
+    except PickcatError as e:
+        print(f"# 拉取我的帖子失败: {e}", file=sys.stderr)
+    for tid, info in watched.items():
+        topics.setdefault(tid, info.get("title", ""))
+
+    orphan = 0
+    for tid, title in topics.items():
+        try:
+            posts = posts_of(c, tid)
+            meta = c.get_topic(tid)
+        except PickcatError as e:
+            print(f"# 读帖失败 {tid}: {e}", file=sys.stderr)
+            continue
+        topic_author = (meta.get("author") or {}).get("id")
+        author_by_pn = {1: topic_author}
+        for it in posts:
+            author_by_pn[int(it.get("postNumber") or 0)] = (it.get("author") or {}).get("id")
+        answered = answered_floor_numbers(c, tid, uid)
+        pns = set(author_by_pn.keys())
+        for it in posts:
+            pn = int(it.get("postNumber") or 0)
+            a = it.get("author") or {}
+            if a.get("id") == uid:
+                continue
+            rtp = it.get("replyToPostNumber")
+            if rtp is not None and int(rtp) > 1 and int(rtp) not in pns:
+                orphan += 1  # 父楼层被删 -> 无法判定归属, 计数备查
+            parent = author_by_pn.get(int(rtp)) if rtp is not None else None
+            if parent != uid or pn in answered:
+                continue
+            merged.setdefault((tid, pn), {
+                "src": "帖子", "topicId": tid, "pn": pn, "actor": a.get("username"),
+                "title": title, "rtp": rtp, "at": it.get("createdAt"),
+                "text": strip_html(it.get("cookedHtml") or "")[:200],
+                "seen": None, "recent": _is_recent(it, REPLY_HORIZON_DAYS),
+            })
+
+    # ---------- 输出 ----------
+    fresh = [r for r in merged.values() if r.get("recent")]
+    stale = [r for r in merged.values() if not r.get("recent")]
+    print("=" * 62)
+    print(f"[对账] 通知全量 {len(items)} 条 | 扫帖 {len(topics)} 个 | "
+          f"父楼层缺失(孤儿) {orphan} 条")
+    print(f"[未回过合计] {len(merged)} 条 —— 其中时间窗内 {len(fresh)} 条, "
+          f"超出 {REPLY_HORIZON_DAYS} 天窗 {len(stale)} 条")
+    if fresh:
+        print("[时间窗内 — 需要处理]")
+        for r in sorted(fresh, key=lambda x: str(x.get("at") or "")):
+            print(f"  #{r['pn']} 来自 {r.get('actor')} [{r['src']}] 《{r.get('title')}》")
+            print(f"    topicId={r['topicId']}")
+            if r.get("nid"):
+                print(f"    notificationId={r['nid']}")
+            if r.get("rtp") is not None:
+                print(f"    replyToPostNumber={r['rtp']}")
+            if r.get("text"):
+                print(f"    内容: {r['text']}")
+            print(f"    时间: {r.get('at')}")
+    else:
+        print("[时间窗内] 无 —— 确认没有待回复 (两路独立判据一致)")
+    if stale and args.verbose:
+        print(f"[超窗, 仅备查] {len(stale)} 条:")
+        for r in sorted(stale, key=lambda x: str(x.get("at") or "")):
+            print(f"  #{r['pn']} 来自 {r.get('actor')} 《{r.get('title')}》 {r.get('at')}")
+    print("=" * 62)
+
+
 def cmd_audit(c, args):
     """审计: API 调用量(以本地账本为准) + 服务端水印是否还在 + 序号缺口。"""
     from pickcat_client import wm_decode, wm_strip, ledger_read
@@ -908,6 +1061,8 @@ def main():
     p.add_argument("--title", default="")
 
     sub.add_parser("state", help="打印状态")
+    p = sub.add_parser("reconcile", help="独立全量对账: 用第二套判据复核'还有没有人回我'")
+    p.add_argument("--verbose", action="store_true", help="同时列出超出时间窗的条目")
     p = sub.add_parser("audit", help="水印审计: API 调用量(账本) + 服务端水印核对 + 序号缺口")
     p.add_argument("--tail", type=int, default=5, help="抽查最近几条 (默认5)")
     p.add_argument("--all", action="store_true", help="全量抽查")
@@ -929,6 +1084,7 @@ def main():
             "comment": cmd_comment,
             "watch": cmd_watch,
             "state": cmd_state,
+            "reconcile": cmd_reconcile,
             "audit": cmd_audit,
             "verify": cmd_verify,
             "refresh": cmd_refresh,

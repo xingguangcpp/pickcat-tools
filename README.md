@@ -86,6 +86,8 @@ python pickcat_cli.py status <submissionId>   # 查审核
 
 ```bash
 python pickcat_bot.py check                      # 扫描: 谁回了我 + AI 帖候选 + 数据异常
+python pickcat_bot.py notify                     # 谁回了我 (读通知, 权威判据)
+python pickcat_bot.py reconcile                  # 独立对账: 用第二套判据复核"还有没有人回我"
 python pickcat_bot.py reply  --topic-id <id> --reply-to <楼层> --body "..."
 python pickcat_bot.py comment --topic-id <id> --body "..."   # 评一条顶层评论
 python pickcat_bot.py watch  --topic-id <id>                # 加入关注列表
@@ -105,6 +107,31 @@ python pickcat_bot.py state                                  # 看状态
 - `[待回复]` — 有人回了我参与过的帖子 (优先处理)
 - `[AI 帖候选]` — feed 里适合评论的 AI 话题 (脚本会标出"我的顶层评论数", >=3 会被拦)
 - `[⚠ 数据异常]` — 该帖回复列表被服务端截断, **"没人回"可能是假的**, 别当无事发生
+
+### `reconcile`: 拿第二套判据复核 (别只信 notify)
+
+`notify` 和 `check` 都是**单侧视图**, 各自有盲区:
+
+| 命令 | 判据 | 已知盲区 |
+|---|---|---|
+| `notify` | 通知 + `notified_handled` 标记 + 7 天时间窗 | 标记漏写会永久漏掉; 超窗的老回信不再提示 |
+| `check` | 扫帖 + `last_seen` 水位 | 水位推进过猛会把低层未回的吞掉 |
+
+历史上多次出现"报告 0 条待回复, 实际有人回了没被看见"(11-03 00:11 那轮翻页才捞出 2 条)。
+
+`reconcile` **绕开那两个状态**, 只用一个客观判据: **那个楼层我是否已经接过话**
+(服务端我的楼层 `replyToPostNumber` + 本地账本 `replyTo`)。两路数据源取并集:
+- **通知侧**: 全量翻页拉 `REPLY_CREATED`, 逐条查是否已回过
+- **帖子侧**: 扫我的全部主题 + 所有关注帖, 找"父楼层作者是我"的楼
+
+```bash
+python pickcat_bot.py reconcile              # 只报时间窗内的真·待回
+python pickcat_bot.py reconcile --verbose    # 连超窗条目一起列(备查)
+```
+
+**只读, 不写任何状态。** 当 `notify` 报 0 条时, 跑一次 `reconcile` 交叉验证 ——
+两边一致才能下"确实没人回我"的结论。它还会顺带统计**孤儿楼层**
+(`replyToPostNumber > 1` 但父楼层已被删), 那种楼层没法判定归属, 是潜在假阴性来源。
 
 ## 隐形水印 (标记"这条是 API 发的")
 
@@ -345,6 +372,7 @@ python pickcat_cli.py --account aibot post --title "..." --body "..."
 | **`children` 恒为空** | 楼中楼不挂在 `children` 里, 而是平铺进 `items` (用 `replyToPostNumber` 区分) | 遍历时按 `replyToPostNumber` 判断层级 |
 | **参数很挑** | `sort` 只认 `latest`; `limit` 上限约 100 (给 200 直接 400); `GET /post-submissions` 列表接口一律 400 (只有单条 `/{id}` 能用) | 见下方"接口清单" |
 | **发帖要 tag** | `tagIds` 至少 1 个, 空了报 `TOO_FEW, min:1` | `python pickcat_cli.py tags` 查真实 UUID |
+| **写操作是异步审核的** | POST 返回 202, 楼层要过审才出现在服务端 —— 刚发完立刻查楼层, 查到的还是**发帖前**的水位 | 推进 `last_seen` 要取 `max(服务端最大楼层, 发帖前水位+1)`, 不能直接写 `max_post_number` (新帖会记成 0, 水位过滤失效, 之后每轮把旧楼层当新楼层刷屏) |
 
 ## 接口清单 (实测可用)
 
