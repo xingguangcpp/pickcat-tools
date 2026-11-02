@@ -1,0 +1,316 @@
+{
+  "generatedAt": "2026-11-02 20:17:21",
+  "serviceUp": true,
+  "probes": {
+    "GET /api/v1/topics?limit=5": {
+      "label": "社区帖子 feed",
+      "path": "/api/v1/topics?limit=5",
+      "public": true,
+      "status": 200,
+      "latencyMs": 95,
+      "keys": [
+        "items",
+        "pageInfo"
+      ],
+      "itemCount": 5,
+      "hasNextPage": true
+    },
+    "GET /api/v1/topics/{tid}": {
+      "label": "主题详情",
+      "path": "/api/v1/topics/01a195a5-b39d-7709-ad7b-0494928c6dd3",
+      "public": true,
+      "status": 200,
+      "latencyMs": 142,
+      "keys": [
+        "author",
+        "closedAt",
+        "closedBy",
+        "collection",
+        "createdAt",
+        "editedAt",
+        "events",
+        "eventsTruncated",
+        "firstPost",
+        "headerFileId",
+        "id",
+        "kind"
+      ],
+      "itemCount": null
+    },
+    "GET /api/v1/topics/{tid}/posts?limit=5": {
+      "label": "主题下的回复",
+      "path": "/api/v1/topics/01a195a5-b39d-7709-ad7b-0494928c6dd3/posts?limit=5",
+      "public": true,
+      "status": 200,
+      "latencyMs": 121,
+      "keys": [
+        "items",
+        "pageInfo"
+      ],
+      "itemCount": 0,
+      "hasNextPage": false
+    },
+    "GET /api/v1/topics/{tid}/posts?limit=5&sort=latest": {
+      "label": "主题回复(按最新排序)",
+      "path": "/api/v1/topics/01a195a5-b39d-7709-ad7b-0494928c6dd3/posts?limit=5&sort=latest",
+      "public": true,
+      "status": 200,
+      "latencyMs": 115,
+      "keys": [
+        "items",
+        "pageInfo"
+      ],
+      "itemCount": 0,
+      "hasNextPage": false
+    },
+    "GET /api/v1/posts/{pid}": {
+      "label": "单条回复详情",
+      "path": "/api/v1/posts/01a1972c-0bef-7aa6-858c-d5938427dae4",
+      "public": true,
+      "status": 200,
+      "latencyMs": 110,
+      "keys": [
+        "canEdit",
+        "contentRole",
+        "currentRevision",
+        "editAttemptsRemaining",
+        "editAttemptsUsed",
+        "editBlockedReason",
+        "latestSubmissionId",
+        "latestSubmissionStatus",
+        "postId",
+        "publishedAt",
+        "request",
+        "topicId"
+      ],
+      "itemCount": null
+    },
+    "GET /api/v1/tags": {
+      "label": "标签列表",
+      "path": "/api/v1/tags",
+      "public": true,
+      "status": 200,
+      "latencyMs": 157,
+      "keys": [
+        "items"
+      ],
+      "itemCount": 11
+    },
+    "GET /api/v1/tags?limit=20": {
+      "label": "标签带 limit(应被拒: 未知参数)",
+      "path": "/api/v1/tags?limit=20",
+      "public": true,
+      "status": 400,
+      "latencyMs": 97,
+      "code": "VALIDATION_FAILED"
+    },
+    "GET /api/v1/users/{uid}": {
+      "label": "用户资料",
+      "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813",
+      "public": true,
+      "status": 200,
+      "latencyMs": 96,
+      "keys": [
+        "avatar",
+        "backgroundFileId",
+        "bio",
+        "createdAt",
+        "id",
+        "level",
+        "profileVersion",
+        "region",
+        "showFollowersList",
+        "showFollowingList",
+        "stats",
+        "username"
+      ],
+      "itemCount": null
+    },
+    "GET /api/v1/users/{uid}/posts?role=reply&limit=5": {
+      "label": "用户回复(role=reply)",
+      "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/posts?role=reply&limit=5",
+      "public": true,
+      "status": 200,
+      "latencyMs": 133,
+      "keys": [
+        "items",
+        "pageInfo"
+      ],
+      "itemCount": 5,
+      "hasNextPage": true
+    },
+    "GET /api/v1/users/{uid}/posts?role=bogus": {
+      "label": "用户回复(role 非法, 应报错)",
+      "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/posts?role=bogus",
+      "public": true,
+      "status": 400,
+      "latencyMs": 96,
+      "code": "VALIDATION_FAILED",
+      "details": "{\"role\": [\"Invalid input: expected \\\"reply\\\"\"]}"
+    },
+    "GET /api/v1/users/{uid}/followers?limit=5": {
+      "label": "粉丝列表",
+      "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/followers?limit=5",
+      "public": true,
+      "status": 200,
+      "latencyMs": 110,
+      "keys": [
+        "items",
+        "pageInfo"
+      ],
+      "itemCount": 5,
+      "hasNextPage": true
+    },
+    "GET /api/v1/users/{uid}/following?limit=5": {
+      "label": "关注列表",
+      "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/following?limit=5",
+      "public": true,
+      "status": 200,
+      "latencyMs": 122,
+      "keys": [
+        "items",
+        "pageInfo"
+      ],
+      "itemCount": 2,
+      "hasNextPage": false
+    },
+    "GET /api/v1/notifications?limit=10": {
+      "label": "通知列表",
+      "path": "/api/v1/notifications?limit=10",
+      "public": true,
+      "status": 200,
+      "latencyMs": 108,
+      "keys": [
+        "items",
+        "pageInfo"
+      ],
+      "itemCount": 10,
+      "hasNextPage": true
+    },
+    "GET /api/v1/works?limit=5": {
+      "label": "作品列表",
+      "path": "/api/v1/works?limit=5",
+      "public": true,
+      "status": 200,
+      "latencyMs": 113,
+      "keys": [
+        "items",
+        "pageInfo"
+      ],
+      "itemCount": 5,
+      "hasNextPage": true
+    },
+    "GET /api/v1/badges": {
+      "label": "徽章列表",
+      "path": "/api/v1/badges",
+      "public": true,
+      "status": 200,
+      "latencyMs": 109,
+      "keys": [
+        "items"
+      ],
+      "itemCount": 8
+    },
+    "GET /api/v1/emoji-collections": {
+      "label": "表情包集列表",
+      "path": "/api/v1/emoji-collections",
+      "public": true,
+      "status": 200,
+      "latencyMs": 112,
+      "keys": [
+        "items",
+        "page",
+        "pageSize",
+        "total"
+      ],
+      "itemCount": 9
+    },
+    "GET /api/v1/emojis?collectionId={cid}": {
+      "label": "表情包(需 collectionId)",
+      "path": "/api/v1/emojis?collectionId=01a0e06b-7980-779b-8be6-e426048ed516",
+      "public": true,
+      "status": 200,
+      "latencyMs": 100,
+      "keys": [
+        "items",
+        "page",
+        "pageSize",
+        "total"
+      ],
+      "itemCount": 12
+    },
+    "GET /api/v1/session": {
+      "label": "会话(需登录)",
+      "path": "/api/v1/session",
+      "public": false,
+      "status": 200,
+      "latencyMs": 119,
+      "keys": [
+        "createdAt",
+        "expiresAt",
+        "silence",
+        "user"
+      ],
+      "itemCount": null
+    },
+    "GET /api/v1/users/{uid}/topics?limit=5": {
+      "label": "我自己的主题(需登录)",
+      "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/topics?limit=5",
+      "public": false,
+      "status": 200,
+      "latencyMs": 86,
+      "keys": [
+        "items",
+        "pageInfo"
+      ],
+      "itemCount": 5,
+      "hasNextPage": true
+    },
+    "GET /api/v1/post-submissions/{sid}": {
+      "label": "投稿审核状态(需登录)",
+      "path": "/api/v1/post-submissions/01a1956c-c398-7b35-9ff2-626cd135b1dd",
+      "public": false,
+      "status": 200,
+      "latencyMs": 121,
+      "keys": [
+        "baseRevision",
+        "commentNumber",
+        "contentRole",
+        "createdAt",
+        "id",
+        "postId",
+        "postNumber",
+        "reasonCode",
+        "reasonDetails",
+        "request",
+        "riskLevel",
+        "status"
+      ],
+      "itemCount": null
+    },
+    "GET /api/v1/__probe_nonexistent__": {
+      "label": "不存在的端点(应 404)",
+      "path": "/api/v1/__probe_nonexistent__",
+      "public": true,
+      "status": 404,
+      "latencyMs": 92,
+      "code": "ROUTE_NOT_FOUND"
+    },
+    "GET /api/v1/posts?limit=5": {
+      "label": "posts 列表(已知不可用)",
+      "path": "/api/v1/posts?limit=5",
+      "public": true,
+      "status": 404,
+      "latencyMs": 96,
+      "code": "ROUTE_NOT_FOUND"
+    },
+    "GET /api/v1/topics?cursor=abc": {
+      "label": "非法 cursor",
+      "path": "/api/v1/topics?cursor=abc",
+      "public": true,
+      "status": 400,
+      "latencyMs": 92,
+      "code": "INVALID_CURSOR"
+    }
+  }
+}
