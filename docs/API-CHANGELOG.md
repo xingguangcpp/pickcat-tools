@@ -28,3 +28,7 @@
 - **新增** `GET /api/v1/__probe_nonexistent__` — 不存在的端点(应 404) (HTTP 404)
 - **新增** `GET /api/v1/posts?limit=5` — posts 列表(已知不可用) (HTTP 404)
 - **新增** `GET /api/v1/topics?cursor=abc` — 非法 cursor (HTTP 400)
+
+## 2026-11-02 21:03:41
+
+- **新增** `GET /api/v1/post-submissions?contentRole=TOPIC_REPLY&status=PENDING` — 投稿列表(需 contentRole+status) (HTTP 200)
