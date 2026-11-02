@@ -251,6 +251,50 @@ python pickcat_cli.py  --account aibot post --title "标题" --body "正文"
 新号得你本人在浏览器注册(平台没开放注册接口, 登录还有人机验证), 流程见 accounts/README.md。
 注意: **新号不等于无限额度** —— 发帖额度是按账号算的(实测 `TOPIC_CREATE` 10 个/24h), 新号只是重新从 0 开始。
 
+## API 实时状态 (自动生成, 一直在更新)
+
+手写的接口清单会过期, 所以接口表面是**巡检出来的**, 不是抄出来的:
+
+| 文件 | 内容 | 谁维护 |
+|---|---|---|
+| [`docs/API-STATUS.md`](docs/API-STATUS.md) | 23 个端点的**当前**状态表 (状态/耗时/条目数/错误码) | `pickcat_probe.py` 每次运行重新生成 |
+| [`docs/API-CHANGELOG.md`](docs/API-CHANGELOG.md) | 变化流水: 端点新增/消失/状态变/结构变 | 有变化时自动追加 |
+| [`docs/api-snapshot.json`](docs/api-snapshot.json) | 机器可读快照, 供 diff | 每次覆盖 |
+
+```bash
+python pickcat_probe.py            # 跑一轮巡检 (只读)
+python pickcat_probe.py --list     # 只看探测清单
+python pickcat_probe.py --json     # 额外输出机器可读结果
+```
+
+- 巡检**只发 GET**, 绝不写、绝不消耗每日发帖额度
+- 发现变化时**自动 commit + push** 到 GitHub (需 `.env` 里 `PICKCAT_PROBE_AUTOPUSH=1` + `GITHUB_TOKEN`)
+- 配套的定时任务每 3 小时跑一轮, 所以文档一直是最新的
+- 服务不可用时安静跳过, 不空转
+
+## 「谁回了我」: 用通知, 别用扫帖子
+
+`GET /api/v1/notifications` 里有 `REPLY_CREATED` 类型, 直接给出**谁 / 哪个帖 / 几楼**:
+
+```json
+{"type":"REPLY_CREATED","createdAt":"...",
+ "details":{"actor":{"id":"...","username":"林颢文"},
+            "topic":{"id":"01a194c3...","title":"鲸鱼娘教你用 API 给 Pickcat 发帖～"},
+            "post":{"id":"...","postNumber":9}}}
+```
+
+通知类型实测有 `POST_LIKED` / `REPLY_CREATED` / `USER_FOLLOWED` 三种。
+
+这比"扫帖子 + 猜谁回我"可靠得多 —— 实测同一时间点:
+扫帖子的方式是 **12 条里只有 5 条为真**(7 条误报), 而通知是 **12 条全部为真、零误报**,
+而且能覆盖到你压根没参与过的帖子(比如别人在你回复过的第三方帖里接着回你)。
+
+```bash
+python pickcat_bot.py notify                    # 谁回了我(未处理的)
+python pickcat_bot.py reply --topic-id ... --reply-to 9 --body "..." --notify <通知id>
+#                                                                        └ 回完顺手标记已处理
+```
+
 ## 已知 API 坑 (实测, 别重复踩)
 
 | 坑 | 表现 | 对策 |
@@ -276,6 +320,47 @@ python pickcat_cli.py  --account aibot post --title "标题" --body "正文"
 | `GET /api/v1/tags` | 公开 | 标签列表 (发帖必用) |
 | `POST /api/v1/posts` | 需登录 | 发帖/回帖 (需 Idempotency-Key, 返回 202 异步审核) |
 | `GET /api/v1/post-submissions/{id}` | 需登录 | 查审核状态 (PENDING_PROVIDER -> PENDING_PUBLICATION -> PUBLISHED) |
+
+## 接口清单 (实测可用)
+
+> 完整实时状态见 [`docs/API-STATUS.md`](docs/API-STATUS.md)（自动生成）。
+> 下面这张表是人工整理的要点, 详细的参数与坑看那份自动文档。
+
+| 端点 | 鉴权 | 说明 |
+|---|---|---|
+| `GET /api/v1/session` | 需登录 | 取本人 (user / expiresAt / silence) |
+| `POST /api/v1/session` | - | 邮箱+密码登录 (有人机验证, 实测走不通) |
+| `GET /api/v1/topics?limit=N` | 公开 | **社区帖子 feed**, 带游标分页 |
+| `GET /api/v1/topics/{id}` | 公开 | 主题详情 (replyCount / repliesTruncated / lastActivityAt / closedAt / pinned) |
+| `GET /api/v1/topics/{id}/posts` | 公开 | 主题下的回复 (可能被截断; `sort` 只认 `latest`) |
+| `GET /api/v1/posts/{postId}` | 公开 | 单条回复详情 (准确; 查单条回复时用它) |
+| `GET /api/v1/users/{uid}` | 公开 | 用户资料 (username / bio / region) |
+| `GET /api/v1/users/{uid}/topics` | 需登录 | 列本人主题 |
+| `GET /api/v1/users/{uid}/posts?role=reply` | 公开 | 列某人的回复 (`role` 只认 `reply`) |
+| `GET /api/v1/users/{uid}/followers` / `following` | 公开 | 粉丝 / 关注列表 |
+| `GET /api/v1/notifications` | 公开 | 通知 (`REPLY_CREATED` / `POST_LIKED` / `USER_FOLLOWED`) |
+| `GET /api/v1/works` | 公开 | 作品列表 |
+| `GET /api/v1/badges` | 公开 | 徽章列表 (8 个) |
+| `GET /api/v1/tags` | 公开 | 标签列表 (11 个, 带 slug) |
+| `GET /api/v1/emoji-collections` | 公开 | 表情包集列表 (9 个) |
+| `GET /api/v1/emojis?collectionId=<uuid>` | 公开 | 某个集合里的表情 (必须带 collectionId) |
+| `POST /api/v1/posts` | 需登录 | 发帖/回帖 (需 Idempotency-Key, 返回 202 异步审核) |
+| `GET /api/v1/post-submissions/{id}` | 需登录 | 查审核状态 (PENDING_PROVIDER → PENDING_PUBLICATION → PUBLISHED) |
+
+**参数校验极严, 而且会泄露 schema**: 服务端用 Zod 校验 query, **未知参数直接 400**。
+所以 `?limit=20` 在 `topics` 上能用、在 `tags` 上就 400 —— 说明 `tags` 没这个参数。
+而错误体的 `details` 等于接口说明书:
+
+```
+GET /api/v1/users/{uid}/posts?role=bogus
+-> 400 {"details":{"role":["Invalid input: expected \"reply\""]}}
+
+GET /api/v1/emojis
+-> 400 {"details":{"collectionId":["Invalid input: expected string, received undefined"]}}
+
+GET /api/v1/topics?cursor=abc
+-> 400 {"code":"INVALID_CURSOR"}     # 专门的错误码, 说明 cursor 是已知参数只是值不对
+```
 
 ## 内置护栏 (为什么这样设计)
 1. **写操作强制间隔** (`--min-interval`, 默认 5s): 防止脚本瞬间狂发被风控。

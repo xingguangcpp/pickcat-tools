@@ -522,6 +522,13 @@ def cmd_reply(c, args):
     resp = c.create_reply(
         args.topic_id, args.body, reply_to_post_number=args.reply_to
     )
+    if getattr(args, "notify", None):
+        st2 = load_state()
+        handled = st2.setdefault("notified_handled", [])
+        if args.notify not in handled:
+            handled.append(args.notify)
+        save_state(st2)
+        print(f"[ok] 通知已标记处理: {args.notify}", file=sys.stderr)
     d["replies"] += 1
     # 顺手关注这个帖 (以后有人回我继续跟)
     w = st.setdefault("watched", {})
@@ -643,9 +650,56 @@ def cmd_quota(c, args):
     print(f"  检测于  : {q.get('detectedAt')}")
 
 
+def cmd_notify(c, args):
+    """列出"谁回了我"—— 直接读通知, 不用再靠扫帖子猜。
+
+    /api/v1/notifications 的 REPLY_CREATED 类型自带:
+      actor(谁) / topic(哪个帖) / post.postNumber(几楼)
+    比"扫帖子 + 猜谁回我"可靠得多: 不会误报, 也不会被回复列表截断坑到。
+
+    处理完一条通知后, 用 `reply --notify <通知id>` 顺手标记为已处理。
+    """
+    st = load_state()
+    seen = st.setdefault("notified_handled", [])
+    data = c._request("GET", f"/api/v1/notifications?limit={args.limit}")
+    items = data.get("items") if isinstance(data, dict) else (data or [])
+    pending = []
+    kinds = {}
+    for it in items:
+        t = it.get("type")
+        kinds[t] = kinds.get(t, 0) + 1
+        if t != "REPLY_CREATED" or it.get("id") in seen:
+            continue
+        d = it.get("details") or {}
+        actor = d.get("actor") or {}
+        topic = d.get("topic") or {}
+        post = d.get("post") or {}
+        pending.append({
+            "notificationId": it.get("id"),
+            "actor": actor.get("username"),
+            "actorId": actor.get("id"),
+            "topicId": topic.get("id"),
+            "topicTitle": topic.get("title"),
+            "postNumber": post.get("postNumber"),
+            "postId": post.get("id"),
+            "at": it.get("createdAt"),
+        })
+    print("=" * 62)
+    print(f"[通知] 最近 {len(items)} 条: {kinds}")
+    if pending:
+        print(f"[待回复] {len(pending)} 条 (确认回过我的):")
+        for p in pending:
+            print(f"  {p['actor']} 在《{p['topicTitle']}》#{p['postNumber']} 回了我")
+            print(f"    topicId={p['topicId']}  notificationId={p['notificationId']}")
+    else:
+        print("[待回复] 0 条 (没有未处理的回复通知)")
+    print("=" * 62)
+
+
 def cmd_state(c, args):
     st = load_state()
-    d = st.get("daily", {})
+    d = daily_guard(st, "replies")  # 跨天自动清零, 别显示昨天的残留
+    save_state(st)
     print(f"今日({d.get('date', '-')}): 评论 {d.get('comments', 0)}/{MAX_COMMENTS_PER_DAY}, "
           f"回复 {d.get('replies', 0)}/{MAX_REPLIES_PER_DAY}")
     print(f"关注列表 ({len(st.get('watched', {}))}):")
@@ -770,6 +824,8 @@ def main():
                    help="回复的楼层号; 1 或省略 = 顶层评论")
     p.add_argument("--body", required=True)
     p.add_argument("--title", default="")
+    p.add_argument("--notify", default=None,
+                   help="回完后把这条通知标记为已处理 (配合 notify 命令)")
 
     p = sub.add_parser("comment", help="评一条顶层评论")
     p.add_argument("--topic-id", required=True)
@@ -788,6 +844,8 @@ def main():
     sub.add_parser("verify", help="验证水印能否在服务端存活")
     sub.add_parser("refresh", help="复查未完成投稿的审核状态 + 更新配额")
     sub.add_parser("quota", help="查看配额限制与恢复时间")
+    p = sub.add_parser("notify", help="列出谁回了我(读通知, 比扫帖子准)")
+    p.add_argument("--limit", type=int, default=30)
 
     args = ap.parse_args()
     if args.account:
@@ -805,6 +863,7 @@ def main():
             "verify": cmd_verify,
             "refresh": cmd_refresh,
             "quota": cmd_quota,
+        "notify": cmd_notify,
         }[args.cmd](c, args)
     except PickcatError as e:
         # 服务端整体不可用时给一句人话, 而不是甩 traceback
