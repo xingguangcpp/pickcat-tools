@@ -284,7 +284,7 @@ python pickcat_cli.py  --account aibot post --title "标题" --body "正文"
 
 | 文件 | 内容 | 谁维护 |
 |---|---|---|
-| [`docs/API-STATUS.md`](docs/API-STATUS.md) | 23 个端点的**当前**状态表 (状态/耗时/条目数/错误码) | `pickcat_probe.py` 每次运行重新生成 |
+| [`docs/API-STATUS.md`](docs/API-STATUS.md) | 全部已知端点的**当前**状态表 (状态/耗时/条目数/错误码) | `pickcat_probe.py` 每次运行重新生成 |
 | [`docs/API-CHANGELOG.md`](docs/API-CHANGELOG.md) | 变化流水: 端点新增/消失/状态变/结构变 | 有变化时自动追加 |
 | [`docs/api-snapshot.json`](docs/api-snapshot.json) | 机器可读快照, 供 diff | 每次覆盖 |
 
@@ -292,12 +292,30 @@ python pickcat_cli.py  --account aibot post --title "标题" --body "正文"
 python pickcat_probe.py            # 跑一轮巡检 (只读)
 python pickcat_probe.py --list     # 只看探测清单
 python pickcat_probe.py --json     # 额外输出机器可读结果
+python pickcat_probe.py --always   # 强制心跳 (即使没变化也刷新时间戳并提交)
+python test_probe_logic.py         # 巡检器自身的逻辑回归测试 (纯本地, 不联网)
 ```
 
 - 巡检**只发 GET**, 绝不写、绝不消耗每日发帖额度
 - 发现变化时**自动 commit + push** 到 GitHub (需 `.env` 里 `PICKCAT_PROBE_AUTOPUSH=1` + `GITHUB_TOKEN`)
 - 配套的定时任务每 3 小时跑一轮, 所以文档一直是最新的
 - 服务不可用时安静跳过, 不空转
+- **心跳**: 即使没有语义变化, 每 12 小时也会提交一次"巡检时间戳刷新"
+  (间隔用 `PICKCAT_PROBE_HEARTBEAT_HOURS` 调, 设 0 关闭)。否则状态表上的时间戳
+  会一直停在最后一次有变化的那轮, 看起来像很久没巡检。
+
+### 推送失败不会把变化吞掉
+
+对比基线用的是 `.probe_published.json` (**上次成功推送**时的快照), 不是本地那份
+`docs/api-snapshot.json`。因为后者每轮都被覆盖: 如果某轮 push 失败 (token 过期/
+网络问题), 那一轮的变化已经写进本地文件了, 下一轮再拿它当基线就会"没变化"——
+变化被静默吞掉, 永远不会再推。
+
+改成拿"已发布基线"对比后: 推送失败 → 基线不动 → 下一轮**重新检测到**同一组变化
+→ 重新提交推送。CHANGELOG 侧用变化指纹 (`.probe_changelog_key`) 去重, 重试不会
+把同一段记录灌进日志。
+
+这两个文件都是本机状态, 已 gitignore。
 
 ## 「谁回了我」: 用通知, 别用扫帖子
 
@@ -370,24 +388,9 @@ python pickcat_cli.py --account aibot post --title "..." --body "..."
 | **回复列表被截断** | `GET /topics/{id}/posts` 会少给回复; 帖级 `repliesTruncated` 常驻 true, `replyCount` 也可能偏小 | 靠 `replyCount` 增长但列表无新楼层来发现, 出现就人工看一眼网页版 |
 | **单帖查询才是准的** | `GET /posts/{postId}` 能拿到确切状态 (`replyToPostNumber` / `publishedAt` / `latestSubmissionStatus`) | 排查单条回复时用它 |
 | **`children` 恒为空** | 楼中楼不挂在 `children` 里, 而是平铺进 `items` (用 `replyToPostNumber` 区分) | 遍历时按 `replyToPostNumber` 判断层级 |
-| **参数很挑** | `sort` 只认 `latest`; `limit` 上限约 100 (给 200 直接 400); `GET /post-submissions` 列表接口一律 400 (只有单条 `/{id}` 能用) | 见下方"接口清单" |
+| **参数很挑** | `sort` 只认 `hot`/`latest`/`earliest`; `limit` 上限**按端点各不同** (notifications 是 50, 给 100 直接 400); `GET /post-submissions` 列表接口必须带 `contentRole`+`status`, 不带就 400 | 见下方"接口清单"; 上限值由巡检器的 `?limit=100` 探测项实测锁定 |
 | **发帖要 tag** | `tagIds` 至少 1 个, 空了报 `TOO_FEW, min:1` | `python pickcat_cli.py tags` 查真实 UUID |
 | **写操作是异步审核的** | POST 返回 202, 楼层要过审才出现在服务端 —— 刚发完立刻查楼层, 查到的还是**发帖前**的水位 | 推进 `last_seen` 要取 `max(服务端最大楼层, 发帖前水位+1)`, 不能直接写 `max_post_number` (新帖会记成 0, 水位过滤失效, 之后每轮把旧楼层当新楼层刷屏) |
-
-## 接口清单 (实测可用)
-
-| 端点 | 鉴权 | 说明 |
-|---|---|---|
-| `GET /api/v1/session` | 需登录 | 取本人 (user / expiresAt / silence) |
-| `POST /api/v1/session` | - | 邮箱+密码登录 (有人机验证, 实测走不通) |
-| `GET /api/v1/users/{uid}/topics` | 需登录 | 列本人主题 |
-| `GET /api/v1/topics` | 公开 | **社区帖子 feed**, 支持 limit + 游标分页 |
-| `GET /api/v1/topics/{id}` | 公开 | 主题详情 (含 replyCount / repliesTruncated / lastActivityAt) |
-| `GET /api/v1/topics/{id}/posts` | 公开 | 主题下的回复 (可能被截断) |
-| `GET /api/v1/posts/{postId}` | 公开 | 单条回复详情 (准确) |
-| `GET /api/v1/tags` | 公开 | 标签列表 (发帖必用) |
-| `POST /api/v1/posts` | 需登录 | 发帖/回帖 (需 Idempotency-Key, 返回 202 异步审核) |
-| `GET /api/v1/post-submissions/{id}` | 需登录 | 查审核状态 (PENDING_PROVIDER -> PENDING_PUBLICATION -> PUBLISHED) |
 
 ## 接口清单 (实测可用)
 
@@ -400,7 +403,7 @@ python pickcat_cli.py --account aibot post --title "..." --body "..."
 | `POST /api/v1/session` | - | 邮箱+密码登录 (有人机验证, 实测走不通) |
 | `GET /api/v1/topics?limit=N` | 公开 | **社区帖子 feed**, 带游标分页 |
 | `GET /api/v1/topics/{id}` | 公开 | 主题详情 (replyCount / repliesTruncated / lastActivityAt / closedAt / pinned) |
-| `GET /api/v1/topics/{id}/posts` | 公开 | 主题下的回复 (可能被截断; `sort` 只认 `latest`) |
+| `GET /api/v1/topics/{id}/posts` | 公开 | 主题下的回复 (可能被截断; `sort` ∈ `hot`/`latest`/`earliest`) |
 | `GET /api/v1/posts/{postId}` | 公开 | 单条回复详情 (准确; 查单条回复时用它) |
 | `GET /api/v1/users/{uid}` | 公开 | 用户资料 (username / bio / region) |
 | `GET /api/v1/users/{uid}/topics` | 需登录 | 列本人主题 |
