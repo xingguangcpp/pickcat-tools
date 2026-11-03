@@ -458,6 +458,12 @@ GET /api/v1/topics?limit=5&kind=bogus
    - 提到外部项目时**只写项目名, 不写域名/URL**。
    - 带点的 API 名 (`entity.velocity` / `getGroupStorage` / `player.userKey`) 不算链接, 不会误伤。
    - 回归测试: `python test_link_guard.py` (23 项, 纯本地不发请求)。
+6. **每日额度的通道口径**: 顶层评论占"评论"额度 (3/天), 楼中楼回复占"回复"额度 (12/天)。
+   `reply --reply-to 1/0/None` 发出去的就是**顶层评论** (与 `comment` 服务端结构完全相同),
+   必须查评论额度 —— 早期版本一律记回复额度, 等于"每日评论 ≤3"可被绕开到 12 条。
+   计数以本地**账本** `.wm_ledger.json` 为准 (每条记录带 `channel` 字段),
+   与 `.bot_state.json` 取较大值, 状态文件丢了也不会把上限清零。
+   - 回归测试: `python test_channel_budget.py` (25 项) + `python test_daily_guard.py` (18 项)。
 
 ## 定时发布说明
 `post --at "YYYY-MM-DD HH:MM"` 是**进程内 sleep 到点发布**, 适合临时用。
