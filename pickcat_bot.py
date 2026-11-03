@@ -175,8 +175,8 @@ def my_topics(c, uid, limit=30):
     return (data.get("items") if isinstance(data, dict) else data) or []
 
 
-def posts_of(c, topic_id, limit=100, max_pages=20):
-    """返回该帖所有楼层(含楼中楼), 自动翻页取全。
+def posts_of_full(c, topic_id, limit=100, max_pages=20):
+    """返回 (楼层列表, 是否取全)。
 
     注意: GET /api/v1/topics/{id}/posts 返回的 items 只有顶层回复,
     楼中楼藏在每层的 children 数组里 (replyToPostNumber 指向父楼层)。
@@ -185,14 +185,22 @@ def posts_of(c, topic_id, limit=100, max_pages=20):
     **必须翻页**: 服务端 limit 上限 100, 超了要按 pageInfo.nextCursor 续取。
     早期版本固定 limit=50 且不翻页 —— 楼层超过 50 的帖(BoxPlay 帖已 54 楼)
     后面的楼层完全看不见, 其中包含真实"回我"的楼, 会被静默漏掉。
+
+    **第二个返回值"是否取全"是这个函数存在的意义**: 旧版 posts_of 遇
+    PickcatError 直接 break, 返回一个**残缺**的列表, 而调用方无从得知 ——
+    于是"我在这帖发过几条顶层评论"被少算, "每帖顶层评论<=3"的护栏被绕过
+    (失效方向又是"放行更多")。现在把"取全了没有"显式交出去, 让护栏能
+    按"查不到 = 按已满处理"来兜底。
     """
     out = []
     seen = set()
     cursor = None
+    complete = True
     for _ in range(max_pages):
         try:
             data = c.get_topic_posts(topic_id, limit=limit, cursor=cursor)
         except PickcatError:
+            complete = False
             break
         items = (data.get("items") if isinstance(data, dict) else data) or []
         for it in flatten_posts(items):
@@ -205,7 +213,15 @@ def posts_of(c, topic_id, limit=100, max_pages=20):
         cursor = pi.get("nextCursor")
         if not pi.get("hasNextPage") or not cursor:
             break
-    return out
+    else:
+        # 翻页次数用尽但服务端还说"还有下一页" -> 没取全
+        complete = False
+    return out, complete
+
+
+def posts_of(c, topic_id, limit=100, max_pages=20):
+    """返回该帖所有楼层(含楼中楼), 自动翻页取全 (只要列表, 不关心是否取全)。"""
+    return posts_of_full(c, topic_id, limit=limit, max_pages=max_pages)[0]
 
 
 def flatten_posts(items, _depth=0):
@@ -249,16 +265,85 @@ def _advance_last_seen(c, topic_id, watched):
     return max(server_max, prev + 1)
 
 
+def ledger_top_level_records(topic_id):
+    """账本里我在该帖发过的顶层评论记录 (每条一个 dict)。
+
+    顶层 = 写操作时 replyTo 指向首楼(1)或为空。`kind="topic"` 的记录是我自己
+    开的帖, 不算"在某帖下的评论" (服务端楼层列表也不含首楼, 口径一致)。
+
+    审核失败 (PUBLICATION_FAILED) 的记录不算 —— 那条评论根本没发出去。
+
+    **逐条单独 try**: 一条坏记录 (replyTo 写成非数字之类) 不能让整批归零,
+    否则"我回过几个楼层"被清成 0 -> 下一轮重复作答白花回复额度。
+    """
+    from pickcat_client import ledger_read
+
+    out = []
+    for rec in ledger_read():
+        try:
+            if not isinstance(rec, dict):
+                continue
+            if rec.get("kind") != "reply":
+                continue
+            if rec.get("topicId") != topic_id:
+                continue
+            if rec.get("status") == "PUBLICATION_FAILED":
+                continue
+            rt = rec.get("replyTo")
+            if rt is None:
+                out.append(rec)
+                continue
+            try:
+                k = int(rt)
+            except (TypeError, ValueError):
+                k = 1  # 判不准 -> 保守按顶层算 (上限 3, 宁可少放行)
+            if k == 1:
+                out.append(rec)
+        except Exception:
+            continue
+    return out
+
+
 def my_top_level_count(c, topic_id, uid):
-    """我在该帖发过的顶层评论数 (顶层 = replyToPostNumber 指向首楼或为空)。"""
-    n = 0
-    for it in posts_of(c, topic_id):
+    """我在该帖发过的顶层评论数, 以及"这个数是否可信"。
+
+    返回 (count, reliable): reliable=False 表示服务端楼层列表**没取全**
+    (翻页中途报错), 此时 count 偏小, 调用方要按"可能更多"保守处理。
+
+    **服务端楼层 与 本地账本取并集**, 不是只看服务端 (2026-11-03 18:xx 修)。
+
+    旧实现只数服务端楼层, 有两个已知的漏算路径, 都会让"每帖顶层评论<=3"
+    的护栏**放行更多**:
+      1. **索引延迟**: 写操作是异步审核的, 刚过审的评论要过一阵才出现在
+         楼层列表里 (memory 里记过: "审核 PUBLISHED 后帖子列表接口有索引
+         延迟, 换 sort 参数重读才拿到")。于是"刚发完第 3 条顶层评论, 立刻
+         再发第 4 条"时, 服务端只数到 2 条 -> 第 4 条被放行 -> 该帖 4 条顶层评论。
+      2. **翻页残缺**: posts_of 遇 PickcatError 会 break, 返回半截列表,
+         调用方无从得知, 少算多少全看运气。
+
+    账本 (.wm_ledger.json) 记的是"我发出过的每一次写操作", 是权威来源,
+    不受上面两条影响。两边按 postId 去重求并集:
+      - 服务端有、账本无 -> 我手动发的 (脚本之外的评论)
+      - 账本有、服务端无 -> 刚发出去还没被服务端索引到的
+    """
+    items, complete = posts_of_full(c, topic_id)
+    server_ids = set()
+    for it in items:
         if (it.get("author") or {}).get("id") != uid:
             continue
         rtp = it.get("replyToPostNumber")
         if rtp in (None, 1):
+            pid = it.get("id")
+            server_ids.add(pid if pid else ("pn", it.get("postNumber")))
+
+    n = len(server_ids)
+    for rec in ledger_top_level_records(topic_id):
+        pid = rec.get("postId")
+        key = pid if pid else ("seq", rec.get("seq"))
+        if key not in server_ids:
             n += 1
-    return n
+            server_ids.add(key)
+    return n, complete
 
 
 def daily_guard(st, key):
@@ -655,13 +740,14 @@ def cmd_check(c, args):
             excerpt = strip_html(it.get("excerpt") or "")[:140]
             if not AI_RE.search(title + " " + excerpt):
                 continue
+            tl, _tl_ok = my_top_level_count(c, tid, uid)
             candidates.append(
                 {
                     "topicId": tid,
                     "title": title,
                     "author": (it.get("author") or {}).get("username"),
                     "excerpt": excerpt,
-                    "myTopLevel": my_top_level_count(c, tid, uid),
+                    "myTopLevel": tl,
                 }
             )
             if len(candidates) >= MAX_CANDIDATES:
@@ -744,7 +830,14 @@ def cmd_reply(c, args):
 
     # 护栏 1: 顶层评论每帖 <= 3
     if is_top:
-        cnt = my_top_level_count(c, args.topic_id, uid)
+        cnt, tl_ok = my_top_level_count(c, args.topic_id, uid)
+        if not tl_ok:
+            # 楼层列表没取全 -> 计数偏小, 可能其实已经 >=3 了。
+            # 查不到就当"已满": 这个护栏失效的方向是"放行更多" (超发),
+            # 而用户定的每帖顶层上限是硬约束, 宁可这次不评。
+            print(f"[护栏] 该帖楼层列表没取全 (翻页中途失败), 无法确认我的顶层评论数, "
+                  f"按已满处理 (上限 {MAX_TOP_LEVEL})。楼中楼回复不受限。", file=sys.stderr)
+            sys.exit(3)
         if cnt >= MAX_TOP_LEVEL:
             print(f"[护栏] 该帖我的顶层评论已 {cnt} 条 (上限 {MAX_TOP_LEVEL}), "
                   f"拒绝再发顶层评论。楼中楼回复不受限。", file=sys.stderr)
@@ -795,7 +888,12 @@ def cmd_comment(c, args):
     uid = client_uid(c)
     d = daily_guard(st, "comments")
 
-    cnt = my_top_level_count(c, args.topic_id, uid)
+    cnt, tl_ok = my_top_level_count(c, args.topic_id, uid)
+    if not tl_ok:
+        # 楼层列表没取全 -> 计数偏小, 可能其实已经 >=3 了。查不到就当"已满"。
+        print(f"[护栏] 该帖楼层列表没取全 (翻页中途失败), 无法确认我的顶层评论数, "
+              f"按已满处理 (上限 {MAX_TOP_LEVEL})。", file=sys.stderr)
+        sys.exit(3)
     if cnt >= MAX_TOP_LEVEL:
         print(f"[护栏] 该帖我的顶层评论已 {cnt} 条 (上限 {MAX_TOP_LEVEL}), 拒绝。",
               file=sys.stderr)
