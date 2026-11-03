@@ -106,3 +106,7 @@
 ## 2026-11-03 18:28:25
 
 - 📐 **快照格式升级** 2 → v3: 结构记录改为完整顶层键 + 字段路径 + 列表项签名 (本轮不逐项报结构差异, 新基线从下一轮开始生效)
+
+## 2026-11-03 18:32:55
+
+- `GET /api/v1/topics?limit=5&sort=latest` 列表项形态变化: 消失 `questionState`, `questionState.resolution`

@@ -1,6 +1,6 @@
 # API 实时状态 (自动生成)
 
-> 由 `pickcat_probe.py` 于 **2026-11-03 18:28:25** 自动生成, 不要手改。
+> 由 `pickcat_probe.py` 于 **2026-11-03 18:32:55** 自动生成, 不要手改。
 > 手写补充请放 README 的「已知 API 坑」一节; 本文件只反映**当前探测到的真实状态**。
 
 - 服务可用: **是**
@@ -10,70 +10,70 @@
 
 | 端点 | 说明 | 鉴权 | 状态 | 耗时 | 条目 | 备注 |
 |---|---|---|---|---|---|---|
-| `GET /api/v1/topics?limit=5` | 社区帖子 feed | 公开 | ✅ 200 | 80ms | 5 |  |
-| `GET /api/v1/topics/{tid}` | 主题详情 | 公开 | ✅ 200 | 155ms | None |  |
-| `GET /api/v1/topics/{tid}/posts?limit=5` | 主题下的回复 | 公开 | ✅ 200 | 103ms | 0 |  |
-| `GET /api/v1/topics/{tid}/posts?limit=5&sort=latest` | 主题回复(按最新排序) | 公开 | ✅ 200 | 98ms | 0 |  |
-| `GET /api/v1/posts/{pid}` | 单条回复详情 | 需登录 | ✅ 200 | 110ms | None |  |
-| `GET /api/v1/tags` | 标签列表 | 公开 | ✅ 200 | 85ms | 11 |  |
-| `GET /api/v1/tags?limit=20` | 标签带 limit(应被拒: 未知参数) | 公开 | ⚠️ 400 | 87ms | - | VALIDATION_FAILED |
-| `GET /api/v1/users/{uid}` | 用户资料(含等级/统计) | 公开 | ✅ 200 | 89ms | None |  |
-| `GET /api/v1/post-submissions?contentRole=TOPIC_REPLY&status=PENDING` | 投稿列表(需 contentRole+status) | 需登录 | ✅ 200 | 89ms | 0 |  |
-| `GET /api/v1/users/{uid}/posts?role=reply&limit=5` | 用户回复(role=reply) | 公开 | ✅ 200 | 109ms | 5 |  |
-| `GET /api/v1/users/{uid}/posts?role=bogus` | 用户回复(role 非法, 应报错) | 公开 | ⚠️ 400 | 82ms | - | VALIDATION_FAILED {"role": ["Invalid input: expected \"reply\""]} |
-| `GET /api/v1/users/{uid}/followers?limit=5` | 粉丝列表 | 公开 | ✅ 200 | 100ms | 5 |  |
-| `GET /api/v1/users/{uid}/following?limit=5` | 关注列表 | 公开 | ✅ 200 | 1102ms | 3 |  |
-| `GET /api/v1/notifications?limit=10` | 通知列表 | 需登录 | ✅ 200 | 1152ms | 10 |  |
-| `GET /api/v1/works?limit=5` | 作品列表 | 公开 | ✅ 200 | 245ms | 5 |  |
-| `GET /api/v1/badges` | 徽章列表 | 公开 | ✅ 200 | 94ms | 8 |  |
-| `GET /api/v1/emoji-collections` | 表情包集列表 | 公开 | ✅ 200 | 101ms | 9 |  |
-| `GET /api/v1/emojis?collectionId={cid}` | 表情包(需 collectionId) | 公开 | ✅ 200 | 141ms | 12 |  |
-| `GET /api/v1/session` | 会话(需登录) | 需登录 | ✅ 200 | 87ms | None |  |
-| `GET /api/v1/users/{uid}/topics?limit=5` | 我自己的主题(需登录) | 公开 | ✅ 200 | 91ms | 5 |  |
-| `GET /api/v1/post-submissions/{sid}` | 投稿审核状态(需登录) | 需登录 | ✅ 200 | 115ms | None |  |
-| `GET /api/v1/__probe_nonexistent__` | 不存在的端点(应 404) | 不存在 | ❌ 404 | 71ms | - | ROUTE_NOT_FOUND |
-| `GET /api/v1/posts?limit=5` | posts 列表(已知不可用) | 不存在 | ❌ 404 | 70ms | - | ROUTE_NOT_FOUND |
-| `GET /api/v1/topics?cursor=abc` | 非法 cursor | 公开 | ⚠️ 400 | 98ms | - | INVALID_CURSOR |
-| `GET /api/v1/topics/{tid}/posts?limit=5&sort=bogus` | 主题回复 sort 非法(应泄露 sort 枚举) | 公开 | ⚠️ 400 | 131ms | - | VALIDATION_FAILED {"sort": ["Invalid option: expected one of \"hot\"|\"latest\"|\"earliest\""]} |
-| `GET /api/v1/users/{uid}/posts?role=reply&sort=bogus` | 用户回复加 sort(该端点无 sort 参数) | 公开 | ⚠️ 400 | 100ms | - | VALIDATION_FAILED |
-| `GET /api/v1/notifications?limit=100` | 通知 limit 超过上限(应泄露上限值) | 需登录 | ⚠️ 400 | 78ms | - | VALIDATION_FAILED {"limit": ["Too big: expected number to be <=50"]} |
-| `GET /api/v1/notifications?limit=50` | 通知 limit 取上限(应 200) | 需登录 | ✅ 200 | 1153ms | 50 |  |
-| `GET /api/v1/topics?limit=5&sort=latest` | topics 带 sort(应支持) | 公开 | ✅ 200 | 130ms | 5 |  |
-| `GET /api/v1/users/{uid}/followers?limit=5&cursor=abc` | 粉丝列表带非法 cursor(应被拒) | 公开 | ⚠️ 400 | 77ms | - | VALIDATION_FAILED {"cursor": ["游标不合法"]} |
-| `GET /api/v1/emoji-collections/{cid}/emojis` | 表情包嵌套路径(已知不可用, 须用 collectionId) | 不存在 | ❌ 404 | 785ms | - | ROUTE_NOT_FOUND |
-| `GET /api/v1/health` | 服务健康检查 | 公开 | ✅ 200 | 138ms | None |  |
-| `GET /api/v1/users/{uid}/badges` | 用户徽章 | 公开 | ✅ 200 | 99ms | 1 |  |
-| `GET /api/v1/works/{wid}` | 作品详情 | 公开 | ✅ 200 | 103ms | None |  |
-| `GET /api/v1/emoji-collections/{cid}` | 表情包集详情 | 公开 | ✅ 200 | 96ms | None |  |
-| `GET /api/v1/topics?limit=5&kind=bogus` | topics kind 非法(应泄露 kind 枚举) | 公开 | ⚠️ 400 | 121ms | - | VALIDATION_FAILED {"kind": ["Invalid option: expected one of \"DISCUSSION\"|\"QUESTION\""]} |
-| `GET /api/v1/topics?limit=5&kind=DISCUSSION` | topics kind=DISCUSSION(应 200) | 公开 | ✅ 200 | 144ms | 5 |  |
-| `GET /api/v1/works?limit=5&kind=DISCUSSION` | works 不支持 kind(应报错) | 公开 | ⚠️ 400 | 92ms | - | VALIDATION_FAILED |
-| `GET /api/v1/users/{uid}/topics?limit=5&kind=DISCUSSION` | 用户主题不支持 kind(应报错) | 公开 | ⚠️ 400 | 93ms | - | VALIDATION_FAILED |
-| `GET /api/v1/users/{uid}/followers?limit=abc` | 通知 limit 非数字(应报错) | 公开 | ⚠️ 400 | 86ms | - | VALIDATION_FAILED {"limit": ["Invalid input: expected number, received NaN"]} |
-| `GET /api/v1/files?limit=1` | 文件列表(需登录) | 需登录 | ✅ 200 | 121ms | 1 |  |
-| `GET /api/v1/files/{fid}` | 文件详情(公开可读原图) | 公开 | ✅ 200 | 221ms | None |  |
-| `GET /api/v1/files/00000000-0000-0000-0000-000000000000` | 文件不存在(应 404 FILE_NOT_FOUND) | 不存在 | ❌ 404 | 93ms | - | FILE_NOT_FOUND |
-| `GET /api/v1/works/{wid}/comments` | 作品评论列表 | 公开 | ✅ 200 | 1101ms | 0 |  |
-| `GET /api/v1/works/{wid}/comments/1` | 作品评论(按楼号, 需登录) | 需登录 | ❌ 404 | 74ms | - | WORK_COMMENT_NOT_FOUND |
-| `GET /api/v1/works/{wid}/comments/0` | 作品评论楼号非法(应泄露下限) | 需登录 | ⚠️ 400 | 68ms | - | VALIDATION_FAILED {"commentNumber": ["Too small: expected number to be >=1"]} |
-| `GET /api/v1/users/{uid}/works?limit=1` | 用户作品列表 | 公开 | ✅ 200 | 161ms | 1 |  |
-| `GET /api/v1/badges/{bid}` | 徽章详情(id 是 slug 非 UUID) | 公开 | ✅ 200 | 137ms | None |  |
-| `GET /api/v1/badges/__probe_no_such_badge__` | 徽章不存在(应 404 BADGE_NOT_FOUND) | 不存在 | ❌ 404 | 90ms | - | BADGE_NOT_FOUND |
-| `GET /api/v1/permissions` | 权限列表(需 access.manage) | 需登录 | ❌ 403 | 100ms | - | PERMISSION_DENIED {"permissionKey": "access.manage"} |
-| `GET /api/v1/users/{uid}/level` | 用户等级(需 community.level.manage) | 需登录 | ❌ 403 | 71ms | - | PERMISSION_DENIED {"permissionKey": "community.level.manage"} |
+| `GET /api/v1/topics?limit=5` | 社区帖子 feed | 公开 | ✅ 200 | 141ms | 5 |  |
+| `GET /api/v1/topics/{tid}` | 主题详情 | 公开 | ✅ 200 | 127ms | None |  |
+| `GET /api/v1/topics/{tid}/posts?limit=5` | 主题下的回复 | 公开 | ✅ 200 | 88ms | 0 |  |
+| `GET /api/v1/topics/{tid}/posts?limit=5&sort=latest` | 主题回复(按最新排序) | 公开 | ✅ 200 | 155ms | 0 |  |
+| `GET /api/v1/posts/{pid}` | 单条回复详情 | 需登录 | ✅ 200 | 87ms | None |  |
+| `GET /api/v1/tags` | 标签列表 | 公开 | ✅ 200 | 138ms | 11 |  |
+| `GET /api/v1/tags?limit=20` | 标签带 limit(应被拒: 未知参数) | 公开 | ⚠️ 400 | 96ms | - | VALIDATION_FAILED |
+| `GET /api/v1/users/{uid}` | 用户资料(含等级/统计) | 公开 | ✅ 200 | 166ms | None |  |
+| `GET /api/v1/post-submissions?contentRole=TOPIC_REPLY&status=PENDING` | 投稿列表(需 contentRole+status) | 需登录 | ✅ 200 | 100ms | 0 |  |
+| `GET /api/v1/users/{uid}/posts?role=reply&limit=5` | 用户回复(role=reply) | 公开 | ✅ 200 | 131ms | 5 |  |
+| `GET /api/v1/users/{uid}/posts?role=bogus` | 用户回复(role 非法, 应报错) | 公开 | ⚠️ 400 | 89ms | - | VALIDATION_FAILED {"role": ["Invalid input: expected \"reply\""]} |
+| `GET /api/v1/users/{uid}/followers?limit=5` | 粉丝列表 | 公开 | ✅ 200 | 133ms | 5 |  |
+| `GET /api/v1/users/{uid}/following?limit=5` | 关注列表 | 公开 | ✅ 200 | 133ms | 3 |  |
+| `GET /api/v1/notifications?limit=10` | 通知列表 | 需登录 | ✅ 200 | 110ms | 10 |  |
+| `GET /api/v1/works?limit=5` | 作品列表 | 公开 | ✅ 200 | 342ms | 5 |  |
+| `GET /api/v1/badges` | 徽章列表 | 公开 | ✅ 200 | 135ms | 8 |  |
+| `GET /api/v1/emoji-collections` | 表情包集列表 | 公开 | ✅ 200 | 171ms | 9 |  |
+| `GET /api/v1/emojis?collectionId={cid}` | 表情包(需 collectionId) | 公开 | ✅ 200 | 121ms | 12 |  |
+| `GET /api/v1/session` | 会话(需登录) | 需登录 | ✅ 200 | 166ms | None |  |
+| `GET /api/v1/users/{uid}/topics?limit=5` | 我自己的主题(需登录) | 公开 | ✅ 200 | 135ms | 5 |  |
+| `GET /api/v1/post-submissions/{sid}` | 投稿审核状态(需登录) | 需登录 | ✅ 200 | 139ms | None |  |
+| `GET /api/v1/__probe_nonexistent__` | 不存在的端点(应 404) | 不存在 | ❌ 404 | 84ms | - | ROUTE_NOT_FOUND |
+| `GET /api/v1/posts?limit=5` | posts 列表(已知不可用) | 不存在 | ❌ 404 | 156ms | - | ROUTE_NOT_FOUND |
+| `GET /api/v1/topics?cursor=abc` | 非法 cursor | 公开 | ⚠️ 400 | 80ms | - | INVALID_CURSOR |
+| `GET /api/v1/topics/{tid}/posts?limit=5&sort=bogus` | 主题回复 sort 非法(应泄露 sort 枚举) | 公开 | ⚠️ 400 | 77ms | - | VALIDATION_FAILED {"sort": ["Invalid option: expected one of \"hot\"|\"latest\"|\"earliest\""]} |
+| `GET /api/v1/users/{uid}/posts?role=reply&sort=bogus` | 用户回复加 sort(该端点无 sort 参数) | 公开 | ⚠️ 400 | 119ms | - | VALIDATION_FAILED |
+| `GET /api/v1/notifications?limit=100` | 通知 limit 超过上限(应泄露上限值) | 需登录 | ⚠️ 400 | 82ms | - | VALIDATION_FAILED {"limit": ["Too big: expected number to be <=50"]} |
+| `GET /api/v1/notifications?limit=50` | 通知 limit 取上限(应 200) | 需登录 | ✅ 200 | 170ms | 50 |  |
+| `GET /api/v1/topics?limit=5&sort=latest` | topics 带 sort(应支持) | 公开 | ✅ 200 | 148ms | 5 |  |
+| `GET /api/v1/users/{uid}/followers?limit=5&cursor=abc` | 粉丝列表带非法 cursor(应被拒) | 公开 | ⚠️ 400 | 110ms | - | VALIDATION_FAILED {"cursor": ["游标不合法"]} |
+| `GET /api/v1/emoji-collections/{cid}/emojis` | 表情包嵌套路径(已知不可用, 须用 collectionId) | 不存在 | ❌ 404 | 107ms | - | ROUTE_NOT_FOUND |
+| `GET /api/v1/health` | 服务健康检查 | 公开 | ✅ 200 | 223ms | None |  |
+| `GET /api/v1/users/{uid}/badges` | 用户徽章 | 公开 | ✅ 200 | 163ms | 1 |  |
+| `GET /api/v1/works/{wid}` | 作品详情 | 公开 | ✅ 200 | 177ms | None |  |
+| `GET /api/v1/emoji-collections/{cid}` | 表情包集详情 | 公开 | ✅ 200 | 102ms | None |  |
+| `GET /api/v1/topics?limit=5&kind=bogus` | topics kind 非法(应泄露 kind 枚举) | 公开 | ⚠️ 400 | 122ms | - | VALIDATION_FAILED {"kind": ["Invalid option: expected one of \"DISCUSSION\"|\"QUESTION\""]} |
+| `GET /api/v1/topics?limit=5&kind=DISCUSSION` | topics kind=DISCUSSION(应 200) | 公开 | ✅ 200 | 147ms | 5 |  |
+| `GET /api/v1/works?limit=5&kind=DISCUSSION` | works 不支持 kind(应报错) | 公开 | ⚠️ 400 | 111ms | - | VALIDATION_FAILED |
+| `GET /api/v1/users/{uid}/topics?limit=5&kind=DISCUSSION` | 用户主题不支持 kind(应报错) | 公开 | ⚠️ 400 | 171ms | - | VALIDATION_FAILED |
+| `GET /api/v1/users/{uid}/followers?limit=abc` | 通知 limit 非数字(应报错) | 公开 | ⚠️ 400 | 113ms | - | VALIDATION_FAILED {"limit": ["Invalid input: expected number, received NaN"]} |
+| `GET /api/v1/files?limit=1` | 文件列表(需登录) | 需登录 | ✅ 200 | 93ms | 1 |  |
+| `GET /api/v1/files/{fid}` | 文件详情(公开可读原图) | 公开 | ✅ 200 | 409ms | None |  |
+| `GET /api/v1/files/00000000-0000-0000-0000-000000000000` | 文件不存在(应 404 FILE_NOT_FOUND) | 不存在 | ❌ 404 | 270ms | - | FILE_NOT_FOUND |
+| `GET /api/v1/works/{wid}/comments` | 作品评论列表 | 公开 | ✅ 200 | 162ms | 0 |  |
+| `GET /api/v1/works/{wid}/comments/1` | 作品评论(按楼号, 需登录) | 需登录 | ❌ 404 | 98ms | - | WORK_COMMENT_NOT_FOUND |
+| `GET /api/v1/works/{wid}/comments/0` | 作品评论楼号非法(应泄露下限) | 需登录 | ⚠️ 400 | 88ms | - | VALIDATION_FAILED {"commentNumber": ["Too small: expected number to be >=1"]} |
+| `GET /api/v1/users/{uid}/works?limit=1` | 用户作品列表 | 公开 | ✅ 200 | 160ms | 1 |  |
+| `GET /api/v1/badges/{bid}` | 徽章详情(id 是 slug 非 UUID) | 公开 | ✅ 200 | 127ms | None |  |
+| `GET /api/v1/badges/__probe_no_such_badge__` | 徽章不存在(应 404 BADGE_NOT_FOUND) | 不存在 | ❌ 404 | 158ms | - | BADGE_NOT_FOUND |
+| `GET /api/v1/permissions` | 权限列表(需 access.manage) | 需登录 | ❌ 403 | 177ms | - | PERMISSION_DENIED {"permissionKey": "access.manage"} |
+| `GET /api/v1/users/{uid}/level` | 用户等级(需 community.level.manage) | 需登录 | ❌ 403 | 91ms | - | PERMISSION_DENIED {"permissionKey": "community.level.manage"} |
 | `GET /api/v1/emojis/{eid}` | 表情详情(需 community.emoji.manage) | 需登录 | ❌ 403 | 94ms | - | PERMISSION_DENIED {"permissionKey": "community.emoji.manage"} |
-| `GET /api/v1/topics?limit=51` | topics limit 超过上限(应为 50) | 公开 | ⚠️ 400 | 104ms | - | VALIDATION_FAILED {"limit": ["Too big: expected number to be <=50"]} |
-| `GET /api/v1/works?limit=51` | works limit 超过上限(应为 50) | 公开 | ⚠️ 400 | 78ms | - | VALIDATION_FAILED {"limit": ["Too big: expected number to be <=50"]} |
-| `GET /api/v1/users/{uid}/posts?role=reply&limit=51` | 用户回复 limit 超过上限(应为 50) | 公开 | ⚠️ 400 | 73ms | - | VALIDATION_FAILED {"limit": ["Too big: expected number to be <=50"]} |
-| `GET /api/v1/topics/{tid}/posts?limit=101` | 主题回复 limit 超过上限(应为 100) | 公开 | ⚠️ 400 | 71ms | - | VALIDATION_FAILED {"limit": ["Too big: expected number to be <=100"]} |
-| `GET /api/v1/files?limit=101` | 文件 limit 超过上限(应为 100) | 需登录 | ⚠️ 400 | 92ms | - | VALIDATION_FAILED {"limit": ["Too big: expected number to be <=100"]} |
-| `GET /api/v1/users/{uid}/works?limit=51` | 用户作品 limit 超过上限(应为 50) | 公开 | ⚠️ 400 | 97ms | - | VALIDATION_FAILED {"limit": ["Too big: expected number to be <=50"]} |
-| `GET /api/v1/topics?limit=5&sort=bogus` | topics feed sort 非法(应泄露 relevance|latest) | 公开 | ⚠️ 400 | 95ms | - | VALIDATION_FAILED {"sort": ["Invalid option: expected one of \"relevance\"|\"latest\""]} |
-| `GET /api/v1/topics?limit=5&sort=relevance` | topics sort=relevance(浏览模式应被拒) | 公开 | ⚠️ 400 | 106ms | - | VALIDATION_FAILED {"sort": ["浏览模式不能按相关性排序"]} |
-| `GET /api/v1/works/{wid}/comments?sort=bogus` | 作品评论 sort 非法(应泄露 hot|latest|earliest) | 公开 | ⚠️ 400 | 125ms | - | VALIDATION_FAILED {"sort": ["Invalid option: expected one of \"hot\"|\"latest\"|\"earliest\""]} |
-| `GET /api/v1/emoji-collections?limit=5` | 表情包集带 limit(该端点无此参数) | 公开 | ⚠️ 400 | 173ms | - | VALIDATION_FAILED |
-| `GET /api/v1/emojis?collectionId={cid}&limit=5` | 表情包带 limit(该端点无此参数) | 公开 | ⚠️ 400 | 139ms | - | VALIDATION_FAILED |
-| `GET /api/v1/badges?limit=1` | 徽章带 limit(该端点接受但不生效) | 公开 | ✅ 200 | 115ms | 8 |  |
+| `GET /api/v1/topics?limit=51` | topics limit 超过上限(应为 50) | 公开 | ⚠️ 400 | 111ms | - | VALIDATION_FAILED {"limit": ["Too big: expected number to be <=50"]} |
+| `GET /api/v1/works?limit=51` | works limit 超过上限(应为 50) | 公开 | ⚠️ 400 | 177ms | - | VALIDATION_FAILED {"limit": ["Too big: expected number to be <=50"]} |
+| `GET /api/v1/users/{uid}/posts?role=reply&limit=51` | 用户回复 limit 超过上限(应为 50) | 公开 | ⚠️ 400 | 105ms | - | VALIDATION_FAILED {"limit": ["Too big: expected number to be <=50"]} |
+| `GET /api/v1/topics/{tid}/posts?limit=101` | 主题回复 limit 超过上限(应为 100) | 公开 | ⚠️ 400 | 97ms | - | VALIDATION_FAILED {"limit": ["Too big: expected number to be <=100"]} |
+| `GET /api/v1/files?limit=101` | 文件 limit 超过上限(应为 100) | 需登录 | ⚠️ 400 | 93ms | - | VALIDATION_FAILED {"limit": ["Too big: expected number to be <=100"]} |
+| `GET /api/v1/users/{uid}/works?limit=51` | 用户作品 limit 超过上限(应为 50) | 公开 | ⚠️ 400 | 100ms | - | VALIDATION_FAILED {"limit": ["Too big: expected number to be <=50"]} |
+| `GET /api/v1/topics?limit=5&sort=bogus` | topics feed sort 非法(应泄露 relevance|latest) | 公开 | ⚠️ 400 | 117ms | - | VALIDATION_FAILED {"sort": ["Invalid option: expected one of \"relevance\"|\"latest\""]} |
+| `GET /api/v1/topics?limit=5&sort=relevance` | topics sort=relevance(浏览模式应被拒) | 公开 | ⚠️ 400 | 93ms | - | VALIDATION_FAILED {"sort": ["浏览模式不能按相关性排序"]} |
+| `GET /api/v1/works/{wid}/comments?sort=bogus` | 作品评论 sort 非法(应泄露 hot|latest|earliest) | 公开 | ⚠️ 400 | 120ms | - | VALIDATION_FAILED {"sort": ["Invalid option: expected one of \"hot\"|\"latest\"|\"earliest\""]} |
+| `GET /api/v1/emoji-collections?limit=5` | 表情包集带 limit(该端点无此参数) | 公开 | ⚠️ 400 | 133ms | - | VALIDATION_FAILED |
+| `GET /api/v1/emojis?collectionId={cid}&limit=5` | 表情包带 limit(该端点无此参数) | 公开 | ⚠️ 400 | 193ms | - | VALIDATION_FAILED |
+| `GET /api/v1/badges?limit=1` | 徽章带 limit(该端点接受但不生效) | 公开 | ✅ 200 | 129ms | 8 |  |
 
 ## 响应结构 (实测字段指纹)
 
@@ -684,38 +684,9 @@ pageInfo.nextCursor:str
 pageInfo:object
 ```
 
-列表项形态 (2 种, 数据形态数与内容无关):
+列表项形态 (1 种):
 
 形态 1:
-
-```
-author:object
-author.avatar:object
-author.id:str
-author.username:str
-bookmarkCount:int
-closedAt:null
-createdAt:str
-editedAt:null
-excerpt:str
-id:str
-kind:str
-lastActivityAt:str
-likeCount:int
-pinned:bool
-pinnedAt:null
-pinnedGlobally:bool
-pinnedTagId:null
-pinnedUntil:null
-questionState:object
-questionState.resolution:null
-replyCount:int
-tags:array
-title:str
-viewCount:int
-```
-
-形态 2:
 
 ```
 author:object
