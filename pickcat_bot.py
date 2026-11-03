@@ -786,6 +786,33 @@ def _fetch_notifications(c, limit=50, max_pages=8):
     return items
 
 
+def _mention_targets_me(details, my_username):
+    """这条 USER_MENTIONED 是不是真的 @ 了我 (而不是 @ 全站)。
+
+    社区里有一种常见玩法: 发个"挑战艾特所有人"的帖, 正文挂一长串 @,
+    谁被 @ 到都会收到一条 USER_MENTIONED。那种**不该算"有人找我"** ——
+    逐个去回既刷屏又没意义 (2026-10-18 实测: starry 的挑战帖 excerpt 里
+    是一长串用户名, 我自己那截断的片段里根本没出现我的名字)。
+
+    判据 = 提及正文里能找到 "@<我的用户名>"。找不到就说明这条不是专门叫我。
+    excerpt 服务端会截断, 所以"没找到"只能判为不是, 不能反推成是 —— 宁可漏,
+    不误报 (误报会白烧回复额度)。
+    """
+    if not my_username:
+        return False
+    ex = str((details or {}).get("excerpt") or "")
+    if not ex:
+        return False
+    me = str(my_username).strip()
+    if not me:
+        return False
+    low = ex.lower()
+    for cand in {me, me.lower(), me.upper()}:
+        if ("@" + cand) in low:
+            return True
+    return False
+
+
 def cmd_notify(c, args):
     """列出"谁回了我"—— 直接读通知, 不用再靠扫帖子猜。
 
@@ -799,16 +826,26 @@ def cmd_notify(c, args):
     seen = st.setdefault("notified_handled", [])
     items = _fetch_notifications(c)
     pending = []
+    mentions = []
     stale = []
     kinds = {}
     ans_cache = {}
     uid = client_uid(c)
+    try:
+        my_username = (c.get_profile() or {}).get("username")
+    except Exception:
+        my_username = None
     for it in items:
         t = it.get("type")
         kinds[t] = kinds.get(t, 0) + 1
-        if t != "REPLY_CREATED" or it.get("id") in seen:
+        # USER_MENTIONED (别人 @ 我) 也是一种"该回应我"的形态, 早期版本只认
+        # REPLY_CREATED, 于是 @ 我提问的帖子会被整段漏掉 (11-03 发现)。
+        # 但 @ 全站的挑战帖会误报, 所以单独归类, 用 _mention_targets_me 二次确认。
+        if t not in ("REPLY_CREATED", "USER_MENTIONED") or it.get("id") in seen:
             continue
         d = it.get("details") or {}
+        if t == "USER_MENTIONED" and not _mention_targets_me(d, my_username):
+            continue
         actor = d.get("actor") or {}
         topic = d.get("topic") or {}
         post = d.get("post") or {}
@@ -821,6 +858,7 @@ def cmd_notify(c, args):
             "postNumber": post.get("postNumber"),
             "postId": post.get("id"),
             "at": it.get("createdAt"),
+            "kind": t,
         }
         # **通知 ≠ 还没回**: 通知只说明"有人回过我", 不管我后来回没回。
         # 早期版本直接把所有未见过的 REPLY_CREATED 当待回复, 于是那些我在
@@ -847,6 +885,10 @@ def cmd_notify(c, args):
         if row["postNumber"] is not None and int(row["postNumber"]) in answered:
             row["answered"] = True
             stale.append(row)
+        elif t == "USER_MENTIONED":
+            # 单独归类: @ 我 不等于"回我", 但同样值得回应。
+            row["answered"] = False
+            mentions.append(row)
         else:
             row["answered"] = False
             pending.append(row)
@@ -865,6 +907,11 @@ def cmd_notify(c, args):
             print(f"    topicId={p['topicId']}  notificationId={p['notificationId']}")
     else:
         print("[待回复] 0 条 (没有未处理的回复通知)")
+    if mentions:
+        print(f"[提及] {len(mentions)} 条 (有人 @ 我, 值得回应):")
+        for p in mentions:
+            print(f"  {p['actor']} 在《{p['topicTitle']}》#{p['postNumber']} @ 了我")
+            print(f"    topicId={p['topicId']}  notificationId={p['notificationId']}")
     if stale:
         print(f"[已回过] {len(stale)} 条 (陈旧通知: 我早已接过话, 已自动标记处理)")
         for p in stale:
