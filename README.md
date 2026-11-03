@@ -501,6 +501,17 @@ GET /api/v1/topics?limit=5&kind=bogus
    计数以本地**账本** `.wm_ledger.json` 为准 (每条记录带 `channel` 字段),
    与 `.bot_state.json` 取较大值, 状态文件丢了也不会把上限清零。
    - 回归测试: `python test_channel_budget.py` (25 项) + `python test_daily_guard.py` (18 项)。
+7. **账本主文件丢失/被清空时, 历史与硬上限都不能丢**:
+   账本 `.wm_ledger.json` 是每日上限的权威来源, 另留一份 `.bak` 备份。
+   - 读侧 (`ledger_read`) 主备**取记录更多**的那一份 —— 主文件缺失 (误删/被移动)、
+     损坏 (半截 JSON)、或被写成合法的空列表 `[]`, 都能从备份恢复, 不会让当天
+     已用的额度归零。
+   - 写侧 (`ledger_append`) 基于读侧结果追加 —— 不会因为主文件不见了,
+     就用一条新记录把备份里的历史覆盖掉。
+   - 主备两份都在却都读不出 = 故障, 此时按"额度已满"处理 (fail closed)。
+   - 备份路径由 `_ledger_paths()` 统一计算, 读写两侧一致 (多账号档案下同样生效)。
+   - 回归测试: `python test_ledger_recovery.py` (22 项) + `python test_ledger_robustness.py` (24 项)。
+   全套回归共 200 项, 改完跑一遍。
 
 ## 定时发布说明
 `post --at "YYYY-MM-DD HH:MM"` 是**进程内 sleep 到点发布**, 适合临时用。
