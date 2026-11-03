@@ -500,5 +500,167 @@ finally:
     shutil.rmtree(tmp12, ignore_errors=True)
 
 print()
+print("=== 测试 13: 分组结构差分 (v4) —— 窗口里多一种形态**不能**被当成结构变化 ===")
+# 实测踩过的坑 (2026-11-03 21:48): 通知列表的 details 字段由 type 决定 ——
+#   REPLY_CREATED / POST_LIKED  -> details.actor + details.post + details.topic
+#   USER_MENTIONED              -> 再加 details.excerpt
+#   TOPIC_EVENT                 -> details.actor + details.event + details.topic (没有 post!)
+#   USER_FOLLOWED               -> details.actor + details.userFollowId (没有 post!)
+# 旧窗口恰好只装得下带 post 的类型, 新窗口混进一条 TOPIC_EVENT,
+# 于是"所有形态求交集"的旧口径一缩 -> 报成"服务端删了 details.post"。
+# 服务端一点没变, 纯误报。
+#
+# v4 改法: 按 type 分组, 组内比。TOPIC_EVENT 是个独立组, 不影响 REPLY_CREATED 组。
+
+def notif(kind, extra=None):
+    """造一条通知项。extra 里放该 type 独有的 details 子字段。"""
+    det = {"actor": {"id": "u1"}, "topic": {"id": "t1"}}
+    if kind in ("REPLY_CREATED", "POST_LIKED"):
+        det["post"] = {"id": "p1"}
+    if kind == "USER_MENTIONED":
+        det["post"] = {"id": "p1"}
+        det["excerpt"] = "..."
+    if kind == "TOPIC_EVENT":
+        det["event"] = "LIKE"
+    if kind == "USER_FOLLOWED":
+        det.pop("topic", None)
+        det["userFollowId"] = "u2"
+    if extra:
+        det.update(extra)
+    return {"id": "n1", "type": kind, "readAt": None, "createdAt": "2026-01-01",
+            "details": det}
+
+# 旧窗口: 只有带 post 的类型
+old_items = [notif("REPLY_CREATED"), notif("REPLY_CREATED"), notif("POST_LIKED")]
+# 新窗口: 混进了 TOPIC_EVENT / USER_MENTIONED / USER_FOLLOWED
+all_new = old_items + [notif("TOPIC_EVENT"), notif("USER_MENTIONED"),
+                        notif("USER_FOLLOWED")]
+# 端到端那组用"条目数相同"的版本, 免得"条目数变化"这条噪音混进来 ——
+# 这个测试只想验"结构维度"不误报 (条目数变化是另一条独立信号)
+new_items = [notif("REPLY_CREATED"), notif("POST_LIKED"), notif("TOPIC_EVENT")]
+
+g_old = P.item_groups(old_items)
+g_new = P.item_groups(all_new)
+check("判别字段识别为 type", g_new.get("discriminator") == "type",
+      f"got={g_new.get('discriminator')}")
+check("分出了 5 个组", len(g_new.get("groups") or {}) == 5,
+      f"got={list((g_new.get('groups') or {}).keys())}")
+
+delta13 = P._fmt_group_delta(g_old, g_new)
+check("窗口里多出 3 种类型不报结构变化", delta13 == "", f"got={delta13!r}")
+
+# 反证: 旧口径 (全局形态交集) 在同一份数据上**会**误报
+old_shapes, _, _ = P.item_schema(old_items)
+new_shapes, _, _ = P.item_schema(new_items)
+old_style = P._fmt_shape_delta(old_shapes, new_shapes)
+check("反证: 旧口径确实会误报 (证明这个测试测到了东西)",
+      "details.post" in old_style, f"old_style={old_style!r}")
+
+# 真·服务端把某一类的字段删了 -> 必须报出来
+removed_field = [notif("REPLY_CREATED"), notif("REPLY_CREATED")]
+for it in removed_field:
+    it["details"].pop("post", None)
+g_removed = P.item_groups(removed_field)
+d2 = P._fmt_group_delta(g_old, g_removed)
+check("某一类的字段真被删了要报",
+      "消失" in d2 and "details.post" in d2, f"got={d2!r}")
+
+# 真·服务端给某一类加了字段 -> 必须报出来
+added_field = [notif("REPLY_CREATED"), notif("REPLY_CREATED")]
+for it in added_field:
+    it["details"]["newField"] = 1
+g_added = P.item_groups(added_field)
+d3 = P._fmt_group_delta(g_old, g_added)
+check("某一类新加了字段要报",
+      "新增" in d3 and "details.newField" in d3, f"got={d3!r}")
+
+# 组内"可选"字段 (只有部分项有) 的内容抖动不该报成结构变化
+opt_old = [notif("REPLY_CREATED"), notif("REPLY_CREATED")]
+opt_old[0]["details"]["sometimes"] = 1
+opt_new = [notif("REPLY_CREATED"), notif("REPLY_CREATED")]
+opt_new[1]["details"]["sometimes"] = 1
+d_opt = P._fmt_group_delta(P.item_groups(opt_old), P.item_groups(opt_new))
+check("组内可选字段抖动不报", d_opt == "", f"got={d_opt!r}")
+
+# 组内字段类型变化也要能发现
+typed_old = P.item_groups([{"id": "n1", "type": "A", "count": 1},
+                           {"id": "n2", "type": "A", "count": 2}])
+typed_new = P.item_groups([{"id": "n1", "type": "A", "count": "1"},
+                           {"id": "n2", "type": "A", "count": "2"}])
+d4 = P._fmt_group_type_delta(typed_old, typed_new)
+check("组内字段类型变化要报", "int" in d4 and "str" in d4, f"got={d4!r}")
+
+# 端到端: 老口径会误报的场景, 新口径零变化
+tmp13 = Path(tempfile.mkdtemp())
+try:
+    P.PUBLISHED_BASELINE = tmp13 / "p.json"
+    P.CHANGELOG_KEY = tmp13 / "k.txt"
+
+    def grp_rec(items):
+        r = make_probe_rec(200, ["items", "pageInfo"], len(items))
+        r["keysFull"] = True
+        r["itemShapes"] = P.item_schema(items)[0]
+        r["itemTypes"] = P.item_schema(items)[2]
+        r["itemVariants"] = P.item_schema(items)[1]
+        r["itemGroups"] = P.item_groups(items)
+        return r
+
+    b = {"schemaVersion": 4, "probes": {
+        "GET /api/v1/notifications?limit=10": grp_rec(old_items)}}
+    n = {"schemaVersion": 4, "probes": {
+        "GET /api/v1/notifications?limit=10": grp_rec(new_items)}}
+    ch = P.diff_snapshots(b, n)
+    check("端到端: 窗口多形态不产生任何变化", len(ch) == 0, f"got={ch}")
+
+    # 端到端: 真变化要报出来, 且带分组标签
+    n2 = {"schemaVersion": 4, "probes": {
+        "GET /api/v1/notifications?limit=10": grp_rec(removed_field)}}
+    ch2 = P.diff_snapshots(b, n2)
+    joined2 = "\n".join(ch2)
+    check("端到端: 真结构变化被报出",
+          "分组结构变化" in joined2 and "details.post" in joined2, joined2)
+    check("端到端: 报出时带上分组标签", "type=REPLY_CREATED" in joined2, joined2)
+finally:
+    shutil.rmtree(tmp13, ignore_errors=True)
+
+print()
+print("=== 测试 14: 判别字段只依赖端点 schema, 不依赖窗口内容 ===")
+# 踩过的坑: 曾要求判别字段"取值种类 >= 2", 但窗口里恰好只有一种类型时
+# (实测 /users/{uid}/topics 那轮只有 kind=DISCUSSION), 判别字段就会变成 None ——
+# 两轮分组维度不一致, 凭空多出"分组维度变化"这种内容驱动的假警报。
+one_kind = [{"id": f"t{i}", "kind": "DISCUSSION", "title": "x"} for i in range(5)]
+two_kind = [{"id": f"t{i}", "kind": "DISCUSSION" if i % 2 else "QUESTION",
+             "title": "x"} for i in range(6)]
+check("只有一种类型时仍识别为 kind",
+      P.detect_discriminator(one_kind) == "kind",
+      f"got={P.detect_discriminator(one_kind)}")
+check("两种类型时也识别为 kind",
+      P.detect_discriminator(two_kind) == "kind",
+      f"got={P.detect_discriminator(two_kind)}")
+check("分组维度不随取值种类数变化",
+      P.detect_discriminator(one_kind) == P.detect_discriminator(two_kind))
+# 分组维度稳定 -> 不会报"分组维度变化"
+gg1 = P.item_groups(one_kind)
+gg2 = P.item_groups(two_kind)
+check("维度稳定时不报维度变化",
+      gg1.get("discriminator") == gg2.get("discriminator"))
+# 单形态时 must == may
+check("单形态组 must 与 may 一致",
+      set(gg1["groups"]["DISCUSSION"]["fields"]) ==
+      set(gg1["groups"]["DISCUSSION"]["may"]))
+
+# 没有任何白名单字段 -> 不分组 (退回全局口径), 不能瞎猜
+no_disc = [{"id": f"x{i}", "title": "t"} for i in range(4)]
+check("无白名单字段时不做分组",
+      P.detect_discriminator(no_disc) is None,
+      f"got={P.detect_discriminator(no_disc)}")
+check("无分组时退化成单组", len(P.item_groups(no_disc)["groups"]) == 1)
+
+# 判别字段的选择顺序稳定: 同时有 type 和 kind 时, 取白名单里靠前的
+both = [{"id": f"x{i}", "type": "T", "kind": "K", "v": 1} for i in range(4)]
+check("多个候选时取白名单靠前的 (type)", P.detect_discriminator(both) == "type",
+      f"got={P.detect_discriminator(both)}")
+
+print()
 print(f"=== 结果: {PASSES} PASS / {FAILS} FAIL ===")
 sys.exit(1 if FAILS else 0)

@@ -35,3 +35,5 @@ accounts/*.env
 # 巡检器的本地状态 (已发布基线 / CHANGELOG 指纹, 各机一份)
 .probe_published.json
 .probe_changelog_key
+# 分组维度锁存 (各机一份: 用来保证分组维度跨轮次不翻转)
+.probe_discriminators.json

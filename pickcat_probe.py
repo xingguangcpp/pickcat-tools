@@ -54,7 +54,27 @@ CHANGELOG_MD = HERE / "docs" / "API-CHANGELOG.md"
 # v3: 完整顶层键 + 字段路径 + 列表项**形态集合**(只看键名) + 独立类型表
 #     v2 的签名取交集, 依赖内容 -> feed 换内容就误报;
 #     v3 改成与内容无关的形态集合, 类型单独用表记 (null 当"不知道")。
-SCHEMA_VERSION = 3
+# v4: 在 v3 基础上加 **列表项分组(itemGroups)**: 按判别字段(type/kind)把项
+#     分组, 每组记自己的字段集合与类型。
+#     v3 的"形态集合求交集"有个致命缺口: 窗口里**多**进来一种种类时,
+#     交集会变小 -> 误报"字段消失"。实测 2026-11-03 21:48 踩到:
+#     通知列表混进一条 TOPIC_EVENT(它本来就没有 details.post),
+#     交集一缩就报成"服务端删了 details.post" —— 纯误报。
+#     v4 改成**分组后逐组比, 且只比两边都有的组**:
+#     "窗口里恰好装了哪几种"被隔离掉, 真结构变化照样抓得到。
+SCHEMA_VERSION = 4
+
+# 判别字段候选(按优先级): 用来把列表项分成"种类"。
+# 常见于"不同种类的返回结构不一样"的端点:
+#   通知 type=REPLY_CREATED/TOPIC_EVENT/USER_FOLLOWED/USER_MENTIONED/POST_LIKED
+#   主题 kind=DISCUSSION/QUESTION
+#   作品 type=KITTEN3/KITTEN4/NEKO
+DISCRIMINATOR_CANDIDATES = (
+    "type", "kind", "status", "role", "category", "contentType", "event", "group",
+)
+
+# 判别字段的取值种类数上限。超过这个数说明它多半不是"种类"而是别的枚举。
+DISCRIMINATOR_MAX_VALUES = 12
 
 # 顶层键最多记多少个。之前写死 12, 结果 GET /api/v1/topics/{tid} 有 26 个顶层字段,
 # 只记了 12 个 —— 另外 14 个字段改了服务端我们完全看不见。
@@ -73,6 +93,11 @@ SCHEMA_DEPTH = 2
 PUBLISHED_BASELINE = HERE / ".probe_published.json"
 # 已写入 CHANGELOG 的那组变化的指纹, 用来避免重试推送时重复追加同一条记录
 CHANGELOG_KEY = HERE / ".probe_changelog_key"
+# 各端点用哪个字段做分组维度 (gitignored, 跨轮次持久化)。
+# 为什么必须持久化: 分组维度一变, 两轮的组就配不上, 结构比对直接失明;
+# 而维度如果每轮靠"重新探测"决定, 窗口内容一变维度就可能翻转。
+# 所以第一次探测定下来之后就锁住, 除非服务端真的把那个字段删了/改名了。
+DISCRIMINATOR_STATE = HERE / ".probe_discriminators.json"
 
 # 探测清单: (说明, 路径, 是否公开接口)
 # 公开 = 不带 cookie 也能读; 其余需要登录。
@@ -385,7 +410,113 @@ def item_schema(items):
     return sorted(sorted(s) for s in shapes), len(shapes), types
 
 
-def run_probe(c, label, path, public):
+def detect_discriminator(items, prefer=None):
+    """找一个能把列表项分成"种类"的字段。返回字段名, 找不到返回 None。
+
+    为什么需要它: 很多列表里**不同种类的项结构不一样** ——
+      通知: type=REPLY_CREATED 带 details.post, type=TOPIC_EVENT 只有 details.event
+      主题: kind=QUESTION 比 kind=DISCUSSION 多 questionState.*
+      作品: type=KITTEN3/KITTEN4/NEKO
+    这种端点上, "把窗口里所有形态求交集"这种判据天然会被**窗口内容**带偏:
+    窗口里多进来一种种类, 交集就少一批字段 -> 误报"服务端删了字段"。
+    实测 2026-11-03 21:48 踩到: 通知列表混进一条 TOPIC_EVENT,
+    就报成"消失 details.post" —— 服务端一点没变。
+
+    **判别字段只允许依赖端点 schema, 不许依赖窗口内容** —— 这是本函数最重要的约束。
+    踩过的两个坑:
+      ① 曾要求"取值种类 >= 2"才算判别字段, 但窗口里恰好只有一种类型时
+         (实测 `/users/{uid}/topics` 那轮只有 kind=DISCUSSION),
+         判别字段就会从 "kind" 变成 None —— **两轮分组维度不一致**,
+         凭空多出"分组维度变化"这种内容驱动的假警报。
+      ② 曾要求"至少 2 项"才算, 但窗口里只剩 1 项时同样会翻转维度。
+    所以: 这里只看"字段是否存在、值是不是非空字符串", 不看项数、不看取值种类。
+
+    prefer: 上几轮用过的判别字段 (持久化在 .probe_discriminators.json)。
+      **优先沿用**, 让分组维度跨轮次保持稳定 ——
+      维度一变, 两轮的组就配不上, 比对直接失明。
+      prefer 字段在这轮数据里不存在(服务端真的改了)时才回退到自动探测。
+
+    候选只从语义化的白名单里挑 (type/kind/status/...),
+    不去碰 id/slug/code 这类标识符字段 ——
+    按 id 分组等于每项一组, 两轮对不上任何组, 结构巡检会彻底失明。
+    """
+    dicts = [i for i in items if isinstance(i, dict)]
+    if not dicts:
+        return None
+    if prefer:
+        # prefer 字段只要在**大部分**项上存在就用它;
+        # 少数项没有该字段 -> 归到 "" 组, 而不是让整个维度翻转。
+        hits = sum(1 for d in dicts
+                   if isinstance(d.get(prefer), str) and d.get(prefer))
+        if hits >= max(1, len(dicts) // 2):
+            return prefer
+    for name in DISCRIMINATOR_CANDIDATES:
+        ok = True
+        for d in dicts:
+            v = d.get(name)
+            if not isinstance(v, str) or not v:
+                ok = False
+                break
+        if ok:
+            return name
+    return None
+
+
+def item_groups(items, prefer=None):
+    """把列表项按判别字段分组, 每组记自己的字段集合与类型。
+
+    返回 {"discriminator": 字段名或 None, "groups": {组名: {"fields": [...], "may": [...], "types": {...}}}}
+
+    组内记两套字段集:
+      fields = 这一类项**每一条都有**的字段 (组内形态的交集) -> "must"
+      may    = 这一类项**至少一条有**的字段 (组内形态的并集) -> "may"
+    差分时用 must×may 交叉口径 (见 _fmt_group_delta), 避免组内
+    可选字段随内容抖动导致误报。
+    """
+    dicts = [i for i in items if isinstance(i, dict)]
+    if not dicts:
+        return None
+    disc = detect_discriminator(dicts, prefer)
+    buckets = {}
+    for d in dicts:
+        v = d.get(disc) if disc else ""
+        key = v if isinstance(v, str) and v else ""
+        buckets.setdefault(key, []).append(d)
+    groups = {}
+    for key, ds in buckets.items():
+        shapes = set()
+        per_path = {}
+        for d in ds:
+            shapes.add(tuple(sorted({_split_field(f)[0] for f in field_paths(d)})))
+            for f in field_paths(d):
+                p, t = _split_field(f)
+                per_path.setdefault(p, set()).add(t)
+        sets = [set(s) for s in shapes]
+        common = set.intersection(*sets) if sets else set()
+        every = set.union(*sets) if sets else set()
+        types = {}
+        for p, ts in per_path.items():
+            types[p] = next(iter(ts)) if len(ts) == 1 else "null"
+        groups[key] = {"fields": sorted(common), "may": sorted(every),
+                       "types": types}
+    return {"discriminator": disc, "groups": groups}
+
+
+def load_discriminators():
+    """读回各端点上次用的分组维度 (键 = 探测项的原始路径)。"""
+    d = _load_json(DISCRIMINATOR_STATE)
+    return d if isinstance(d, dict) else {}
+
+
+def save_discriminators(state):
+    """原子写回分组维度。"""
+    try:
+        _atomic_write_json(DISCRIMINATOR_STATE, state)
+    except Exception:
+        pass
+
+
+def run_probe(c, label, path, public, prefer_disc=None):
     """跑一个探测, 返回结构化结果 (不抛异常)。"""
     t0 = time.time()
     rec = {"label": label, "path": path, "public": public}
@@ -410,6 +541,9 @@ def run_probe(c, label, path, public):
                 rec["itemShapes"] = shapes
                 rec["itemVariants"] = variants
                 rec["itemTypes"] = types
+                g = item_groups(items, prefer=prefer_disc)
+                if g:
+                    rec["itemGroups"] = g
         elif isinstance(d, list):
             rec["keys"] = ["<list>"]
             rec["keysFull"] = True
@@ -420,6 +554,9 @@ def run_probe(c, label, path, public):
                 rec["itemShapes"] = shapes
                 rec["itemVariants"] = variants
                 rec["itemTypes"] = types
+                g = item_groups(d, prefer=prefer_disc)
+                if g:
+                    rec["itemGroups"] = g
         else:
             rec["keys"] = [type(d).__name__]
             rec["keysFull"] = True
@@ -493,14 +630,18 @@ def _fmt_field_delta(old, new, limit=8):
 def _is_struct_change(line):
     """判断一条变化描述是不是"结构类" (与快照记录粒度有关, 不是服务端行为变化)。
 
-    结构类: 响应结构变化 / 字段路径变化 / 列表项形态变化 / 列表项字段类型变化。
+    结构类: 响应结构变化 / 字段路径变化 / 列表项形态变化 / 列表项字段类型变化 /
+            列表项分组结构变化 / 列表项分组字段类型变化 / 列表项分组维度变化。
     这些在"快照格式升级"那一轮必须静音 —— 否则会把"我们换了把更细的尺子"
     报成"服务端改了 14 个字段"。
     """
     if line.startswith("📐"):
         return False   # 这条本身就是"格式升级"说明, 不是结构差异
     return ("响应结构变化" in line or "字段路径变化" in line
-            or "列表项形态变化" in line or "列表项字段类型变化" in line)
+            or "列表项形态变化" in line or "列表项字段类型变化" in line
+            or "列表项分组结构变化" in line
+            or "列表项分组字段类型变化" in line
+            or "列表项分组维度变化" in line)
 
 
 def _universal_fields(shapes):
@@ -509,6 +650,71 @@ def _universal_fields(shapes):
     if not sets:
         return set()
     return set.intersection(*sets)
+
+
+def _fmt_group_delta(old_g, new_g, limit=8):
+    """把两份"分组结构"的差异说成人话。
+
+    口径: **只比两边都有的组**。
+      组出现/消失 = 窗口内容变了 (这轮恰好装进了/顶出去了某一种通知),
+      不是服务端改了结构 —— 实测 2026-11-03 21:48 就是这么误报的:
+      通知列表混进一条 TOPIC_EVENT (它本来就没 details.post),
+      全局形态交集一缩 -> 报成"服务端删了 details.post"。
+      分组后, TOPIC_EVENT 是个独立组, 根本不影响 REPLY_CREATED 组 -> 不报。
+      代价: 服务端**新增一种通知类型**这种变化会被漏掉 (组只在一边出现)。
+      宁可漏报, 不要天天误报 —— 那些组仍完整记在快照与 API-STATUS.md 里。
+
+    组内比较用 **must / may** 两套字段集 (和全局形态差分同一套逻辑):
+      must = 这一类项**每一条都有**的字段 (组内形态的交集)
+      may  = 这一类项**至少一条有**的字段 (组内形态的并集)
+      - "消失": 旧 must 有, 新 may 都没有 -> 这一类里这个字段彻底没了
+      - "新增": 新 must 有, 旧 may 都没有 -> 这一类里这个字段是新加的
+    为什么不用 may 比 may: 组内**可选**字段 (只部分项有) 会随内容抖动,
+      用 may 会误报; 而用 must 比 must 会漏掉"只加在部分项上"的变化。
+      must×may 这个交叉口径两边都不误报, 代价是漏报一部分边界情况。
+    """
+    og = (old_g or {}).get("groups") or {}
+    ng = (new_g or {}).get("groups") or {}
+    disc = (old_g or {}).get("discriminator") or ""
+    prefix = f"{disc}=" if disc else ""
+    parts = []
+    for key in sorted(set(og) & set(ng)):
+        o_g, n_g = og[key] or {}, ng[key] or {}
+        o_must = set(o_g.get("fields") or [])
+        o_may = set(o_g.get("may") or o_g.get("fields") or [])
+        n_must = set(n_g.get("fields") or [])
+        n_may = set(n_g.get("may") or n_g.get("fields") or [])
+        added = sorted(n_must - o_may)
+        removed = sorted(o_must - n_may)
+        if not added and not removed:
+            continue
+        seg = []
+        if added:
+            seg.append("新增 " + ", ".join(f"`{a}`" for a in added[:limit])
+                       + (f" 等 {len(added)} 个" if len(added) > limit else ""))
+        if removed:
+            seg.append("消失 " + ", ".join(f"`{r}`" for r in removed[:limit])
+                       + (f" 等 {len(removed)} 个" if len(removed) > limit else ""))
+        parts.append(f"[{prefix}{key}] " + "; ".join(seg))
+    return "; ".join(parts)
+
+
+def _fmt_group_type_delta(old_g, new_g, limit=6):
+    """分组内的字段类型变化 (null = "不知道", 不当证据)。"""
+    og = (old_g or {}).get("groups") or {}
+    ng = (new_g or {}).get("groups") or {}
+    disc = (old_g or {}).get("discriminator") or ""
+    prefix = f"{disc}=" if disc else ""
+    parts = []
+    for key in sorted(set(og) & set(ng)):
+        o_g, n_g = og[key] or {}, ng[key] or {}
+        o_may = set(o_g.get("may") or o_g.get("fields") or [])
+        n_may = set(n_g.get("may") or n_g.get("fields") or [])
+        only = o_may & n_may
+        d = _fmt_type_delta(o_g.get("types") or {}, n_g.get("types") or {}, only=only)
+        if d:
+            parts.append(f"[{prefix}{key}] {d}")
+    return "; ".join(parts)
 
 
 def _fmt_shape_delta(old, new, limit=8):
@@ -616,24 +822,46 @@ def diff_snapshots(old, new):
             delta = _fmt_field_delta(pf, nf)
             if delta:
                 changes.append(f"`{key}` 字段路径变化: {delta}")
-        # 列表项**形态**: 只比"所有形态都有的字段"(交集), 与内容无关。
-        # 实测踩过的坑: sort=latest 是滑动窗口, 窗口里一个 QUESTION 主题被
-        # 新主题顶出去 -> 形态集合变了, 但服务端没变 -> 按集合比会误报。
-        ps, ns = prev.get("itemShapes"), rec.get("itemShapes")
-        if ps is not None and ns is not None and ps != ns:
-            delta = _fmt_shape_delta(ps, ns)
-            if delta:
-                changes.append(f"`{key}` 列表项形态变化: {delta}")
-        # 列表项字段类型: null 当"不知道", 所以 null↔具体值不报, int→str 才报。
-        # 只比通用字段 (与形态差分口径一致), 免得单一形态的字段类型跳动误报。
-        pt, nt = prev.get("itemTypes"), rec.get("itemTypes")
-        if pt is not None and nt is not None and pt != nt:
-            only = None
-            if ps is not None and ns is not None:
-                only = _universal_fields(ps) & _universal_fields(ns)
-            delta = _fmt_type_delta(pt, nt, only=only)
-            if delta:
-                changes.append(f"`{key}` 列表项字段类型变化: {delta}")
+        # 列表项**分组结构** (v4): 按判别字段分组后逐组比, 且只比两边都有的组。
+        # 为什么不用全局形态交集 (v3 的做法): 全局交集会被"窗口里多了一种种类"带偏 ——
+        # 实测 2026-11-03 21:48 误报"消失 details.post", 服务端一点没变,
+        # 只是通知列表混进了一条本来就没有 details.post 的 TOPIC_EVENT。
+        # 分组后这种内容抖动被隔离在组内, 不会再污染别的组。
+        og, ng = prev.get("itemGroups"), rec.get("itemGroups")
+        if og is not None and ng is not None:
+            od, nd = og.get("discriminator"), ng.get("discriminator")
+            if od == nd:
+                delta = _fmt_group_delta(og, ng)
+                if delta:
+                    changes.append(f"`{key}` 列表项分组结构变化: {delta}")
+                tdelta = _fmt_group_type_delta(og, ng)
+                if tdelta:
+                    changes.append(f"`{key}` 列表项分组字段类型变化: {tdelta}")
+            else:
+                # 分组维度变了 -> 两轮的组配不上, 无法逐组比。
+                # 这既可能是服务端真把字段改名了, 也可能只是这轮没探到那个字段。
+                # 保守起见: **不报**维度变化 (内容驱动的假警报代价更高),
+                # 改用全局形态口径兜底, 至少还能看出字段整体变了没有。
+                ps2, ns2 = prev.get("itemShapes"), rec.get("itemShapes")
+                if ps2 is not None and ns2 is not None and ps2 != ns2:
+                    d2 = _fmt_shape_delta(ps2, ns2)
+                    if d2:
+                        changes.append(f"`{key}` 列表项形态变化: {d2}")
+        else:
+            # 没有分组信息 (老基线) -> 退回 v3 的全局形态交集口径
+            ps, ns = prev.get("itemShapes"), rec.get("itemShapes")
+            if ps is not None and ns is not None and ps != ns:
+                delta = _fmt_shape_delta(ps, ns)
+                if delta:
+                    changes.append(f"`{key}` 列表项形态变化: {delta}")
+            pt, nt = prev.get("itemTypes"), rec.get("itemTypes")
+            if pt is not None and nt is not None and pt != nt:
+                only = None
+                if ps is not None and ns is not None:
+                    only = _universal_fields(ps) & _universal_fields(ns)
+                delta = _fmt_type_delta(pt, nt, only=only)
+                if delta:
+                    changes.append(f"`{key}` 列表项字段类型变化: {delta}")
         # 注: 形态**个数**的变化不再单独报一条 —— 它与上面的形态集合差分是
         # 同一件事 (集合变了个数必然变), 单独报会变成重复噪音。
         # itemVariants 仍然记在快照里, 供人看表格时参考。
@@ -664,7 +892,7 @@ def diff_snapshots(old, new):
         changes = [c for c in changes if not _is_struct_change(c)]
         changes.append(
             f"📐 **快照格式升级** {ov or 'v1(无版本)'} → v{nv}: "
-            f"结构记录改为完整顶层键 + 字段路径 + 列表项形态集合 "
+            f"结构记录改为完整顶层键 + 字段路径 + 列表项形态集合 + 分组结构 "
             f"(本轮不逐项报结构差异, 新基线从下一轮开始生效)")
 
     # 鉴权属性变化: 这是最重要的一类变化 —— 端点还在, 但"谁能看"变了。
@@ -831,6 +1059,23 @@ def write_status_md(snap):
                 for f in shape:
                     # 类型能从 itemTypes 里补上就补上 (null = 该字段本次没值/类型未定)
                     ty = types.get(f)
+                    struct_lines.append(f"{f}:{ty}" if ty else f)
+                struct_lines.append("```")
+        grp = rec.get("itemGroups") or {}
+        groups = grp.get("groups") or {}
+        if len(groups) > 1:
+            disc = grp.get("discriminator")
+            struct_lines.append("")
+            struct_lines.append(
+                f"按 `{disc}` 分组 ({len(groups)} 组, 每组字段是该类项**一定有**的字段):")
+            for gkey in sorted(groups):
+                g = groups[gkey] or {}
+                struct_lines.append("")
+                struct_lines.append(f"组 `{gkey}`:")
+                struct_lines.append("")
+                struct_lines.append("```")
+                for f in g.get("fields") or []:
+                    ty = (g.get("types") or {}).get(f)
                     struct_lines.append(f"{f}:{ty}" if ty else f)
                 struct_lines.append("```")
         struct_lines.append("")
@@ -1033,11 +1278,17 @@ def main():
     c = build_client()
     ctx = build_context(c)
     probes = {}
+    disc_state = load_discriminators()
     print(f"探测 {len(PROBES)} 个端点 (只读)…")
     for label, path, public in PROBES:
         real = _subst(path, ctx)
-        rec = run_probe(c, label, real, public)
+        # 分组维度沿用上次定下来的那个 (锁住, 免得窗口内容一变维度就翻转)
+        rec = run_probe(c, label, real, public,
+                        prefer_disc=disc_state.get(path))
         probes[f"GET {path}"] = rec
+        g = rec.get("itemGroups") or {}
+        if g:
+            disc_state[path] = g.get("discriminator")
         flag = "OK " if rec.get("status") == 200 else str(rec.get("status"))
         print(f"  {flag:>4} {rec.get('latencyMs', 0):>5}ms  {real}")
         time.sleep(0.3)
@@ -1074,6 +1325,8 @@ def main():
         "probes": probes,
         "auth": auth,
     }
+    # 分组维度锁存 (即使这轮没变化也要存, 免得下轮重新探测时维度翻转)
+    save_discriminators(disc_state)
     old = load_baseline()
     changes = diff_snapshots(old, snap)
 

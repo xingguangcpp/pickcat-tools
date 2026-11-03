@@ -115,6 +115,36 @@
 
 - `GET /api/v1/notifications?limit=10` 列表项形态变化: 消失 `details.post`
 
+> **更正**: 上面 21:48 这条"消失 `details.post`"**是巡检器自身的误报, 不是服务端变化**。
+> 根因: 通知的 `details` 字段**由 `type` 决定** ——
+>   `REPLY_CREATED`/`POST_LIKED` → `details.actor + details.post + details.topic`
+>   `USER_MENTIONED` → 再加 `details.excerpt`
+>   `TOPIC_EVENT` → `details.actor + details.event + details.topic` (**没有 post**)
+>   `USER_FOLLOWED` → `details.actor + details.userFollowId` (**没有 post**)
+> 旧窗口恰好只装得下带 `post` 的类型, 新窗口混进一条 `TOPIC_EVENT`,
+> 于是"所有形态求交集"的旧口径一缩 —— 就报成了"服务端删了 `details.post`"。
+> 服务端一个字段都没动, 变的只是"这轮通知列表里恰好有哪几种类型"。
+>
+> **为什么上一版的修法没挡住**: v3 改成"形态差分只比所有形态都有的字段(交集)",
+> 那挡住了"窗口里**少**一种形态"(集合缩小, 交集不变),
+> 却挡不住"窗口里**多**一种形态" —— 多一种形态, 交集反而变小, 于是误报。
+> 集合本身是内容相关的, 拿它做差分, 两个方向都会漏。
+>
+> **v4 的修法**: 改成**按判别字段(type/kind)分组, 组内比**。
+> `TOPIC_EVENT` 是独立的一组, 不影响 `REPLY_CREATED` 组 —— 内容抖动被隔离在组内。
+> 组内用 must×may 交叉口径 (must=每条都有的字段, may=至少一条有的字段):
+> "消失" = 旧 must 有且新 may 都没有, "新增" = 新 must 有且旧 may 都没有。
+>
+> 另外补了一个坑: **分组维度必须只依赖端点 schema, 不能依赖窗口内容**。
+> 曾要求"取值种类 >= 2"才算判别字段, 但窗口里恰好只有一种类型时
+> (实测 `/users/{uid}/topics` 那轮只有 `kind=DISCUSSION`), 维度会从 `kind` 翻成 None ——
+> 两轮组配不上, 凭空多出"分组维度变化"这种假警报。
+> 现在维度**锁存**在 `.probe_discriminators.json`, 跨轮次沿用。
+>
+> 代价(明确记下来): 服务端**新增一种通知类型**这类变化会被漏掉
+> (新组只在一边出现, 按"只比两边都有的组"的口径不报)。
+> 宁可漏报不要天天误报 —— 新组仍完整记在 `api-snapshot.json` 与 `API-STATUS.md` 里。
+
 ## 2026-11-03 22:16:38
 
 - 📐 **快照格式升级** 3 → v4: 结构记录改为完整顶层键 + 字段路径 + 列表项形态集合 + 分组结构 (本轮不逐项报结构差异, 新基线从下一轮开始生效)
