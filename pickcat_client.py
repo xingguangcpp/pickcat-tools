@@ -308,6 +308,30 @@ def ledger_append(record):
         pass
 
 
+def ledger_unreadable():
+    """账本文件在磁盘上、却读不出内容 -> True (故障, 不是"没有记录")。
+
+    必须区分两种"空":
+      - 文件根本不存在 (全新环境) -> 正常, 用量确实是 0
+      - 文件存在且非空, 但主文件和 .bak 都解析失败 -> **故障**
+
+    第二种若当成"没有记录", 每日计数会归零 -> 硬上限 (评论<=3 / 回复<=12)
+    被静默突破, 失效方向恰好是"放行更多"。所以这里显式报出来。
+    """
+    p = state_file(".wm_ledger.json")
+    try:
+        if not p.exists():
+            return False
+        if p.stat().st_size <= 2:
+            return False  # "[]" 之类的空壳, 算正常
+    except Exception:
+        return False
+    try:
+        return len(ledger_read()) == 0
+    except Exception:
+        return True
+
+
 def ledger_write_all(records):
     """整体重写账本 (refresh 更新审核状态时用) —— 主文件与备份都原子写。
 

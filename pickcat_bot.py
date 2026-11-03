@@ -281,17 +281,39 @@ def daily_guard(st, key):
       - state 丢了/旧了 -> 账本把真实用量捞回来
       - 账本某条写操作没记上 (极端情况) -> state 不至于把用量记小
     两边一致时就是原值, 行为不变。
+
+    **第三种偏差 (2026-11-03 15:xx 补)**: 账本本身读不出来。
+    ledger_read() 在主文件和 .bak 都解析失败时返回 [], 于是账本贡献 0;
+    如果 state 同时丢了 (load_state 返回 {}), 两边都是 0/0 ->
+    硬上限静默突破。所以这一档要 **fail closed**: 账本不可信且 state
+    也覆盖不到今天 -> 按额度已满处理 (宁可今天不写, 也不越限),
+    并标出 daily_unknown, 让人知道是"查不到"而不是"真没用过"。
     """
     d = st.setdefault("daily", {})
     if d.get("date") != today_key():
         d["date"] = today_key()
         d["comments"] = 0
         d["replies"] = 0
+    d.pop("daily_unknown", None)
     # 用账本校准 (账本是权威)。跨天的记录不参与统计。
     try:
         led_c, led_r = ledger_daily_counts(today_key())
-        d["comments"] = max(int(d.get("comments", 0) or 0), led_c)
-        d["replies"] = max(int(d.get("replies", 0) or 0), led_r)
+    except Exception:
+        led_c, led_r = 0, 0
+    d["comments"] = max(int(d.get("comments", 0) or 0), led_c)
+    d["replies"] = max(int(d.get("replies", 0) or 0), led_r)
+
+    # 账本在磁盘上却读不出内容 -> 今天的用量**查不到**。
+    # 此时 state 若还留着今天的计数就用它 (它是当天的缓存, 通常是对的);
+    # state 也丢了/是昨天的 -> 只能 fail closed, 按额度已满处理。
+    try:
+        from pickcat_client import ledger_unreadable
+
+        if ledger_unreadable():
+            if int(d.get("comments", 0) or 0) <= 0 and int(d.get("replies", 0) or 0) <= 0:
+                d["comments"] = MAX_COMMENTS_PER_DAY
+                d["replies"] = MAX_REPLIES_PER_DAY
+                d["daily_unknown"] = True
     except Exception:
         pass
     return d
@@ -305,24 +327,47 @@ def ledger_daily_counts(day):
     推断: replyTo 属于 (None, 1) 的算顶层评论, 其余算楼中楼回复 ——
     与 create_reply 的传参一致 (comment 固定 replyTo=1, reply 传对方楼层号)。
     "at" 字段前 10 位就是日期, 按天切分。
+
+    **单条坏记录不能让整天计数归零** (2026-11-03 15:xx 修):
+    账本是手写/程序混合产生的 JSON, 任何一条记录的 replyTo 写成非数字
+    (如 "abc") 或 at 格式异常, 都会让 int() 抛 ValueError -> 整个函数
+    抛异常 -> daily_guard 吞掉异常 -> 当天计数退回 state 的 0/0 ->
+    **硬上限被静默突破**。所以:
+      - 每条记录单独 try, 坏记录跳过但**不让整天归零**
+      - 坏记录里 replyTo 看着像顶层 (1/None) 的, 仍按顶层评论计
+        (保守: 顶层评论上限更严, 宁可少放行也不多放行)
     """
     from pickcat_client import ledger_read
 
     c = 0
     r = 0
     for rec in ledger_read():
-        if rec.get("kind") != "reply":
+        try:
+            if not isinstance(rec, dict):
+                continue
+            if rec.get("kind") != "reply":
+                continue
+            if str(rec.get("at") or "")[:10] != day:
+                continue
+            ch = rec.get("channel")
+            if ch not in ("comment", "reply"):
+                rt = rec.get("replyTo")
+                if rt is None:
+                    ch = "comment"
+                else:
+                    try:
+                        n = int(rt)
+                    except (TypeError, ValueError):
+                        # replyTo 坏了: 认不准是哪种通道 -> 保守按顶层评论计
+                        # (顶层上限 3 比回复上限 12 严, 宁可少放行)
+                        n = 1
+                    ch = "comment" if n == 1 else "reply"
+            if ch == "comment":
+                c += 1
+            else:
+                r += 1
+        except Exception:
             continue
-        if str(rec.get("at") or "")[:10] != day:
-            continue
-        ch = rec.get("channel")
-        if ch not in ("comment", "reply"):
-            rt = rec.get("replyTo")
-            ch = "comment" if rt is None or int(rt) == 1 else "reply"
-        if ch == "comment":
-            c += 1
-        else:
-            r += 1
     return c, r
 
 
@@ -446,11 +491,17 @@ def answered_floor_numbers(c, topic_id, uid):
         from pickcat_client import ledger_read
 
         for r in ledger_read():
-            if r.get("topicId") != topic_id or r.get("kind") != "reply":
+            # 每条记录单独 try: 一条坏记录 (replyTo 写成非数字) 不该让
+            # **后面所有记录**的 replyTo 都丢失 —— 那会把"我回过的楼层"
+            # 判成没回过, 下一轮重复作答白花额度。
+            try:
+                if r.get("topicId") != topic_id or r.get("kind") != "reply":
+                    continue
+                rt = r.get("replyTo")
+                if rt is not None:
+                    out.add(int(rt))
+            except (TypeError, ValueError, AttributeError):
                 continue
-            rt = r.get("replyTo")
-            if rt is not None:
-                out.add(int(rt))
     except Exception:
         pass
 
@@ -648,6 +699,9 @@ def cmd_check(c, args):
     print(f"[每日额度] 评论 {_d.get('comments', 0)}/{MAX_COMMENTS_PER_DAY}, "
           f"回复 {_d.get('replies', 0)}/{MAX_REPLIES_PER_DAY} "
           f"({_d.get('date', '-')}, 按自然日清零)")
+    if _d.get("daily_unknown"):
+        print("[⚠ 额度未知] 账本读不出内容且 state 也没有今天的计数 —— "
+              "已按额度已满处理 (宁可今天不写也不越限)。请检查 .wm_ledger.json。")
     if anomalies:
         print(f"[⚠ 数据异常] {len(anomalies)} 条 —— 列表可能被服务端截断, 别当成'没人回'")
         for a in anomalies:
