@@ -123,8 +123,7 @@ def outage_record(ok):
         st["last_fail_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
         st["down"] = st["consecutive_failures"] >= OUTAGE_THRESHOLD
     try:
-        state_file(".wm_outage.json").write_text(json.dumps(st, ensure_ascii=False, indent=2),
-                               encoding="utf-8")
+        _atomic_write_json(state_file(".wm_outage.json"), st)
     except Exception:
         pass
     return bool(st.get("down")), st
@@ -170,12 +169,29 @@ def service_is_down():
     return True, st
 
 
+def _atomic_write_json(path, obj):
+    """原子写 JSON: 先写同目录临时文件, 再 os.replace 覆盖。
+
+    os.replace 在同一文件系统上是原子的 —— 要么是完整的新内容, 要么还是
+    旧的完整内容, 不会留半截 JSON。
+
+    为什么所有状态文件都必须这么写: 状态文件一旦被截断, 读取端会吞掉解析
+    异常返回默认值, 而**失效方向恰好是"放行更多"**:
+      - 账本坏了 -> 每日已用的评论/回复数被当成 0 -> 硬上限失效
+      - 配额记录坏了 -> 平台配额闸门失效 -> 继续发到被服务端拒绝
+      - 宕机记录坏了 -> 判定不出"服务不可用" -> 反复撞 502
+    所以写这些文件的地方一律走这里, 不直接 write_text。
+    """
+    p = Path(path)
+    tmp = p.with_name(p.name + ".tmp")
+    tmp.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, p)
+
+
 def quota_save(record):
     """记录一次配额失败信息 (来自投稿审核结果的 reasonDetails)。"""
     try:
-        state_file(".wm_quota.json").write_text(
-            json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        _atomic_write_json(state_file(".wm_quota.json"), record)
     except Exception:
         pass
 
@@ -251,17 +267,56 @@ def quota_from_submission(record):
 
 
 def ledger_append(record):
-    """把一次写操作记进本地账本 (失败不影响主流程)。"""
+    """把一次写操作记进本地账本 (失败不影响主流程)。
+
+    **必须原子写**: 账本是"每日硬上限"的权威兜底来源 (见 pickcat_bot.daily_guard),
+    写坏了就等于把当天已用的额度清零。旧的 write_text 写法在写到一半被打断
+    (进程被杀/断电) 时会留下半截 JSON, 之后 ledger_read() 解析失败返回 [],
+    当天计数直接归零 —— 且失效方向是"放行更多"。
+
+    另外先写 .bak: 账本被写坏时还能从备份恢复历史, 而不是只剩一个空列表。
+    """
     try:
+        p = state_file(".wm_ledger.json")
         data = []
-        if state_file(".wm_ledger.json").exists():
-            data = json.loads(state_file(".wm_ledger.json").read_text(encoding="utf-8"))
-            if not isinstance(data, list):
-                data = []
+        if p.exists():
+            try:
+                data = json.loads(p.read_text(encoding="utf-8"))
+                if not isinstance(data, list):
+                    data = []
+            except Exception:
+                # 主文件坏了: 退回备份, 别把历史直接清空
+                bak = p.with_name(p.name + ".bak")
+                if bak.exists():
+                    try:
+                        data = json.loads(bak.read_text(encoding="utf-8"))
+                        if not isinstance(data, list):
+                            data = []
+                    except Exception:
+                        data = []
         data.append(record)
-        state_file(".wm_ledger.json").write_text(
-            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        _atomic_write_json(p, data)
+        # 备份写**新内容** (与主文件一致), 不是写之前的老内容。
+        # 差别很实在: 备份落后一条的话, 主文件损坏后退回备份就少算了一次写操作
+        # —— 当天计数少 1, 上限又松了一点。备份必须与主文件等价。
+        try:
+            bak = p.with_name(p.name + ".bak")
+            _atomic_write_json(bak, data)
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+
+def ledger_write_all(records):
+    """整体重写账本 (refresh 更新审核状态时用) —— 主文件与备份都原子写。
+
+    备份同步更新: 否则备份会一直落后于主文件, 真出事时退回备份等于少记录。
+    """
+    p = state_file(".wm_ledger.json")
+    _atomic_write_json(p, records)
+    try:
+        _atomic_write_json(p.with_name(p.name + ".bak"), records)
     except Exception:
         pass
 
@@ -273,6 +328,15 @@ def ledger_read():
         data = json.loads(state_file(".wm_ledger.json").read_text(encoding="utf-8"))
         return data if isinstance(data, list) else []
     except Exception:
+        # 主文件解析失败: 退回 .bak, 而不是当成"从来没有记录"
+        # (返回 [] 会让每日计数归零 = 硬上限静默失效)
+        bak = state_file(".wm_ledger.json").with_name(".wm_ledger.json.bak")
+        if bak.exists():
+            try:
+                data = json.loads(bak.read_text(encoding="utf-8"))
+                return data if isinstance(data, list) else []
+            except Exception:
+                return []
         return []
 
 
@@ -371,18 +435,31 @@ def wm_apply(text, seq=None, position="end", visible=False):
 
 
 def wm_next_seq():
-    """取下一个写操作序号 (持久化, 跨进程递增)。"""
+    """取下一个写操作序号 (持久化, 跨进程递增)。
+
+    原子写: 序号计数器坏了会**回退重用** —— 已经用过的 seq 再次出现,
+    水印审计就分不清"这条是哪次调用发的", 序号缺口统计也会失真。
+
+    计数器损坏时不静默从 1 重新开始, 而是**从账本里已用的最大 seq 恢复**:
+    账本记着每次写操作的 seq, 是"用到哪儿了"的权威依据。少了这一步,
+    计数器一坏就等于把水印编号从头开始发, 老序号会被重复使用。
+    """
     n = 0
     if state_file(".wm_counter.json").exists():
         try:
             n = int(json.loads(state_file(".wm_counter.json").read_text(encoding="utf-8")).get("seq", 0))
         except Exception:
             n = 0
+    if n <= 0:
+        # 计数器丢失或损坏 -> 用账本里的最大 seq 兜底
+        try:
+            for r in ledger_read():
+                n = max(n, int(r.get("seq") or 0))
+        except Exception:
+            pass
     n += 1
     try:
-        state_file(".wm_counter.json").write_text(
-            json.dumps({"seq": n}, ensure_ascii=False), encoding="utf-8"
-        )
+        _atomic_write_json(state_file(".wm_counter.json"), {"seq": n})
     except Exception:
         pass
     return n

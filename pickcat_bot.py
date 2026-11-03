@@ -806,10 +806,26 @@ def cmd_refresh(c, args):
                 quota = q
                 quota_save(q)
             r["reasonDetails"] = rec.get("reasonDetails")
-    # 回写账本
+    # 回写账本 (原子写)。
+    # ⚠ 这里的写回是"每轮都执行"的, 所以它同时是危险的: 万一读到的账本
+    #   是空的 (主文件损坏 + 备份也坏了), 这行就把空列表写回去, 把历史
+    #   **永久**抹掉 —— 每日计数随之归零, 硬上限静默失效。
+    #   所以: 账本本来有内容、这轮却读到空 -> 拒绝写回, 保留现场。
+    ledger_path = state_file(".wm_ledger.json")
     try:
-        state_file(".wm_ledger.json").write_text(
-            json.dumps(ledger, ensure_ascii=False, indent=2), encoding="utf-8")
+        prev_size = ledger_path.stat().st_size if ledger_path.exists() else 0
+    except Exception:
+        prev_size = 0
+    if prev_size > 2 and not ledger:
+        print(f"  ⚠ 账本读回为空但文件非空 ({prev_size} 字节) —— 拒绝写回, "
+              f"保留原文件现场 (可能是账本损坏)", file=sys.stderr)
+        print("  复查了 0 条账本记录 (账本读回异常, 已跳过写回)")
+        print("=" * 62)
+        return
+    try:
+        from pickcat_client import ledger_write_all
+
+        ledger_write_all(ledger)
     except Exception as e:
         print(f"账本写回失败: {e}", file=sys.stderr)
 
