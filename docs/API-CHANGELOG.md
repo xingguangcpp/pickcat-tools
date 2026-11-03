@@ -46,3 +46,15 @@
 - **新增** `GET /api/v1/topics?limit=5&sort=latest` — topics 带 sort(应支持) (HTTP 200)
 - **新增** `GET /api/v1/users/{uid}/followers?limit=5&cursor=abc` — 粉丝列表带非法 cursor(应被拒) (HTTP 400)
 - **新增** `GET /api/v1/emoji-collections/{cid}/emojis` — 表情包嵌套路径(已知不可用, 须用 collectionId) (HTTP 404)
+
+## 2026-11-03 08:41:42
+
+- **新增** `GET /api/v1/health` — 服务健康检查 (HTTP 200)
+- **新增** `GET /api/v1/users/{uid}/badges` — 用户徽章 (HTTP 200)
+- **新增** `GET /api/v1/works/{wid}` — 作品详情 (HTTP 200)
+- **新增** `GET /api/v1/emoji-collections/{cid}` — 表情包集详情 (HTTP 200)
+- **新增** `GET /api/v1/topics?limit=5&kind=bogus` — topics kind 非法(应泄露 kind 枚举) (HTTP 400)
+- **新增** `GET /api/v1/topics?limit=5&kind=DISCUSSION` — topics kind=DISCUSSION(应 200) (HTTP 200)
+- **新增** `GET /api/v1/works?limit=5&kind=DISCUSSION` — works 不支持 kind(应报错) (HTTP 400)
+- **新增** `GET /api/v1/users/{uid}/topics?limit=5&kind=DISCUSSION` — 用户主题不支持 kind(应报错) (HTTP 400)
+- **新增** `GET /api/v1/users/{uid}/followers?limit=abc` — 通知 limit 非数字(应报错) (HTTP 400)
