@@ -35,8 +35,11 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from pickcat_client import PickcatError, is_service_down, service_is_down, state_file  # noqa: E402
-from pickcat_bot import build_client  # noqa: E402
+from pickcat_client import (  # noqa: E402
+    DEFAULT_BASE, PickcatClient, PickcatError, is_service_down, service_is_down,
+    state_file,
+)
+from pickcat_bot import build_client, load_env  # noqa: E402
 
 SNAPSHOT_PATH = HERE / "docs" / "api-snapshot.json"
 STATUS_MD = HERE / "docs" / "API-STATUS.md"
@@ -53,6 +56,9 @@ CHANGELOG_KEY = HERE / ".probe_changelog_key"
 
 # 探测清单: (说明, 路径, 是否公开接口)
 # 公开 = 不带 cookie 也能读; 其余需要登录。
+#
+# 注意: 第三列"是否公开"是**手写标注**, 只用于和 ANON_PROBES 的**实测**结果对照。
+# 真相永远以实测为准 (见 ANON_PROBES 的注释)。
 PROBES = [
     ("社区帖子 feed", "/api/v1/topics?limit=5", True),
     ("主题详情", "/api/v1/topics/{tid}", True),
@@ -96,7 +102,100 @@ PROBES = [
     ("works 不支持 kind(应报错)", "/api/v1/works?limit=5&kind=DISCUSSION", True),
     ("用户主题不支持 kind(应报错)", "/api/v1/users/{uid}/topics?limit=5&kind=DISCUSSION", True),
     ("通知 limit 非数字(应报错)", "/api/v1/users/{uid}/followers?limit=abc", True),
+    # --- 2026-11-03 14:47 补充: 端点发现 + README 证伪 ---
+    # 发现: 之前 README 写"GET /api/v1/files 路由存在但恒 401"是**错的** ——
+    #   匿名访问才 401, 带 cookie 是 200 且能列出 13 个文件。
+    ("文件列表(需登录)", "/api/v1/files?limit=1", False),
+    ("文件详情(公开可读原图)", "/api/v1/files/{fid}", True),
+    ("文件不存在(应 404 FILE_NOT_FOUND)", "/api/v1/files/00000000-0000-0000-0000-000000000000", True),
+    ("作品评论列表", "/api/v1/works/{wid}/comments", True),
+    ("作品评论(按楼号, 需登录)", "/api/v1/works/{wid}/comments/1", False),
+    ("作品评论楼号非法(应泄露下限)", "/api/v1/works/{wid}/comments/0", False),
+    ("用户作品列表", "/api/v1/users/{uid}/works?limit=1", True),
+    ("徽章详情(id 是 slug 非 UUID)", "/api/v1/badges/{bid}", True),
+    ("徽章不存在(应 404 BADGE_NOT_FOUND)", "/api/v1/badges/__probe_no_such_badge__", True),
+    ("权限列表(需 access.manage)", "/api/v1/permissions", False),
+    ("用户等级(需 community.level.manage)", "/api/v1/users/{uid}/level", False),
+    ("表情详情(需 community.emoji.manage)", "/api/v1/emojis/{eid}", False),
+    # --- 2026-11-03 14:47 补充: 每端点 limit 上限各不相同, 逐个钉死 ---
+    ("topics limit 超过上限(应为 50)", "/api/v1/topics?limit=51", True),
+    ("works limit 超过上限(应为 50)", "/api/v1/works?limit=51", True),
+    ("用户回复 limit 超过上限(应为 50)", "/api/v1/users/{uid}/posts?role=reply&limit=51", True),
+    ("主题回复 limit 超过上限(应为 100)", "/api/v1/topics/{tid}/posts?limit=101", True),
+    ("文件 limit 超过上限(应为 100)", "/api/v1/files?limit=101", False),
+    ("用户作品 limit 超过上限(应为 50)", "/api/v1/users/{uid}/works?limit=51", True),
+    # --- 2026-11-03 14:47 补充: feed 的 sort 枚举与主题内回复**不同** ---
+    ("topics feed sort 非法(应泄露 relevance|latest)", "/api/v1/topics?limit=5&sort=bogus", True),
+    ("topics sort=relevance(浏览模式应被拒)", "/api/v1/topics?limit=5&sort=relevance", True),
+    ("作品评论 sort 非法(应泄露 hot|latest|earliest)", "/api/v1/works/{wid}/comments?sort=bogus", True),
+    # --- 2026-11-03 14:47 补充: 参数存在性 (未知参数直接 400) ---
+    ("表情包集带 limit(该端点无此参数)", "/api/v1/emoji-collections?limit=5", True),
+    ("表情包带 limit(该端点无此参数)", "/api/v1/emojis?collectionId={cid}&limit=5", True),
+    ("徽章带 limit(该端点接受但不生效)", "/api/v1/badges?limit=1", True),
 ]
+
+
+# 匿名探测: 用来**实测**每个端点是否公开, 而不是靠 PROBES 里手写的标注。
+#
+# 为什么必须有这个:
+#   上一轮总结过一条硬经验 —— "鉴权属性必须匿名实测, 不能靠看起来像公开标注"。
+#   错标注比缺端点更危险: 缺端点会被巡检发现, 错标注不会, 文档会一直骗人。
+#   上一轮靠人工挨个试出 4 处标反 —— 但手写标注没有自愈能力:
+#   服务端哪天把一个公开端点改成需登录, 带 cookie 的探测照样返回 200, 巡检看不出来。
+#
+# 这份清单**自动派生** (见 anon_probe_plan), 不手写:
+#   手写的清单会漏 —— 加了 PROBES 却忘了加匿名探测, 新端点的鉴权属性就没人验。
+#   派生规则: 按"路由"(path 去掉 query) 去重, 每条路由取该路由第一个探测项的
+#   path+query 去匿名打一次。带 query 是为了和带 cookie 的那次**同路径同参数**,
+#   这样两次结果可直接对照 (见 interpret_auth)。
+def anon_probe_plan(probes=None):
+    """从 PROBES 派生匿名探测计划: [(说明, path_with_query)] —— 每条路由一条。"""
+    seen = set()
+    plan = []
+    for label, path, _public in (probes if probes is not None else PROBES):
+        route = path.split("?", 1)[0]
+        if route in seen:
+            continue
+        seen.add(route)
+        plan.append((label, path))
+    return plan
+
+
+def _declared_public(route):
+    """取 PROBES 里对该路由的**手写**公开标注 (用于和实测结果对照)。"""
+    for _label, path, public in PROBES:
+        if path.split("?", 1)[0] == route:
+            return public
+    return False
+
+
+def interpret_auth(anon_status, auth_status):
+    """由"匿名"与"带 cookie"两次结果, 推断该路由的鉴权属性。
+
+    依据 (2026-11-03 实测):
+      - 匿名 200              -> 公开
+      - 匿名 401              -> 需登录
+      - 匿名 403              -> 需权限 (登录了但权限不足)
+      - 匿名 400              -> **公开**: 鉴权中间件在参数校验之前,
+        匿名能拿到 400 说明鉴权这一关过了, 只是参数不合法。
+      - 匿名 404              -> 路由不存在
+      - 其他                  -> 未判定
+
+    注: 匿名 400 判成"公开"依赖"鉴权先于校验"这个顺序。
+    这是实测出来的 (私有路由 /api/v1/files 匿名给 401 而非 400), 不是假设。
+    """
+    if anon_status == 200:
+        return "公开"
+    if anon_status == 401:
+        return "需登录"
+    if anon_status == 403:
+        return "需权限"
+    if anon_status == 400:
+        return "公开"
+    if anon_status == 404:
+        return "不存在"
+    return "未判定"
+
 
 
 # 自动生成、允许被 git 回滚的三个文件
@@ -109,7 +208,10 @@ def _subst(path, ctx):
                 .replace("{uid}", ctx["uid"])
                 .replace("{cid}", ctx["cid"])
                 .replace("{wid}", ctx["wid"])
-                .replace("{sid}", ctx["sid"]))
+                .replace("{sid}", ctx["sid"])
+                .replace("{fid}", ctx.get("fid", ""))
+                .replace("{bid}", ctx.get("bid", ""))
+                .replace("{eid}", ctx.get("eid", "")))
 
 
 def build_context(c):
@@ -121,6 +223,9 @@ def build_context(c):
         "cid": "",
         "wid": "",
         "sid": "01a1956c-c398-7b35-9ff2-626cd135b1dd",
+        "fid": "",
+        "bid": "badge_bugfinder",
+        "eid": "",
     }
     try:
         ses = c.get_session()
@@ -141,6 +246,31 @@ def build_context(c):
         items = (works.get("items") if isinstance(works, dict) else works) or []
         if items:
             ctx["wid"] = items[0].get("id", "")
+    except Exception:
+        pass
+    # 2026-11-03: 新增探测项需要的真实 id
+    try:
+        files = c._request("GET", "/api/v1/files?limit=1")
+        items = (files.get("items") if isinstance(files, dict) else files) or []
+        if items:
+            ctx["fid"] = items[0].get("id", "")
+    except Exception:
+        pass
+    try:
+        badges = c._request("GET", "/api/v1/badges")
+        items = (badges.get("items") if isinstance(badges, dict) else badges) or []
+        for b in items:
+            if b.get("id"):
+                ctx["bid"] = b["id"]
+                break
+    except Exception:
+        pass
+    try:
+        if ctx["cid"]:
+            emos = c._request("GET", "/api/v1/emojis?collectionId=" + ctx["cid"])
+            items = (emos.get("items") if isinstance(emos, dict) else emos) or []
+            if items:
+                ctx["eid"] = items[0].get("id", "")
     except Exception:
         pass
     return ctx
@@ -213,6 +343,40 @@ def diff_snapshots(old, new):
     for key, rec in op.items():
         if key not in np_:
             changes.append(f"**消失** `{key}` (原 HTTP {rec.get('status')})")
+
+    # 鉴权属性变化: 这是最重要的一类变化 —— 端点还在, 但"谁能看"变了。
+    oa = old.get("auth") or {}
+    na = new.get("auth") or {}
+    for route, rec in na.items():
+        prev = oa.get(route)
+        if prev is None:
+            # 新路由: 上面的"新增"已经报过一次, 但**鉴权矛盾也得报** ——
+            # 新加的探测项把公开端点标成需登录 (或反之) 同样是错标注,
+            # 而错标注比缺端点更危险 (文档会一直骗人)。
+            if rec.get("mismatch"):
+                changes.append(
+                    f"⚠️ `{route}` 探针表标注与实测不符: 标注 {rec.get('declared')}, "
+                    f"实测 **{rec.get('mode')}** (匿名 {rec.get('anonStatus')})")
+            continue
+        if prev.get("mode") != rec.get("mode"):
+            changes.append(
+                f"⚠️ `{route}` 鉴权属性变化: {prev.get('mode')} → **{rec.get('mode')}**")
+        if prev.get("declared") != rec.get("declared"):
+            changes.append(
+                f"`{route}` 探针表标注变化: {prev.get('declared')} → "
+                f"**{rec.get('declared')}**")
+        # 标注与实测的矛盾: 只在"翻转"时报一次, 不每轮重复报同一条
+        if bool(prev.get("mismatch")) != bool(rec.get("mismatch")):
+            if rec.get("mismatch"):
+                changes.append(
+                    f"⚠️ `{route}` 探针表标注与实测不符: 标注 {rec.get('declared')}, "
+                    f"实测 **{rec.get('mode')}** (匿名 {rec.get('anonStatus')})")
+            else:
+                changes.append(
+                    f"`{route}` 标注与实测现已一致 ({rec.get('mode')})")
+    for route, rec in oa.items():
+        if route not in na:
+            changes.append(f"**消失(路由)** `{route}` (原 {rec.get('mode')})")
     return changes
 
 
@@ -274,6 +438,7 @@ def mark_changelog_written(changes):
 
 def write_status_md(snap):
     """生成 docs/API-STATUS.md (每次重新生成, 反映当前真实状态)。"""
+    auth_map = snap.get("auth") or {}
     lines = [
         "# API 实时状态 (自动生成)",
         "",
@@ -282,19 +447,22 @@ def write_status_md(snap):
         "",
         f"- 服务可用: **{'是' if snap.get('serviceUp') else '否'}**",
         f"- 探测端点数: {len(snap.get('probes') or {})}",
+        f"- 已实测鉴权的路由数: {len(auth_map)}",
         "",
         "| 端点 | 说明 | 鉴权 | 状态 | 耗时 | 条目 | 备注 |",
         "|---|---|---|---|---|---|---|",
     ]
     for key, rec in (snap.get("probes") or {}).items():
-        auth = "公开" if rec.get("public") else "需登录"
+        route = key.split("?", 1)[0].replace("GET ", "")
+        a = auth_map.get(route) or {}
+        mode = a.get("mode") or ("公开" if rec.get("public") else "需登录")
         st = rec.get("status")
         mark = "✅" if st == 200 else ("⚠️" if st == 400 else "❌")
         note = rec.get("code") or ""
         if rec.get("details"):
             note += " " + rec["details"][:80]
         lines.append(
-            f"| `{key}` | {rec.get('label')} | {auth} | {mark} {st} | "
+            f"| `{key}` | {rec.get('label')} | {mode} | {mark} {st} | "
             f"{rec.get('latencyMs')}ms | {rec.get('itemCount', '-')} | {note} |"
         )
     lines += [
@@ -304,6 +472,20 @@ def write_status_md(snap):
         "- ✅ 200 = 端点可用",
         "- ⚠️ 400 = **端点存在但参数不合法** (可继续深挖, `details` 里会泄露期望的 schema)",
         "- ❌ 404 = 端点不存在",
+        "",
+        "### 鉴权列是**实测**的, 不是手写的",
+        "",
+        "每条路由都会**不带 cookie** 再打一次, 据此判定它到底公开还是要登录:",
+        "",
+        "| 匿名结果 | 判定 | 含义 |",
+        "|---|---|---|",
+        "| 200 | 公开 | 不用登录就能读 |",
+        "| 401 | 需登录 | 路由存在, 差一个 cookie |",
+        "| 403 | 需权限 | 登录了但权限不够 (如社区管理) |",
+        "| 400 | 公开 | 鉴权这关过了, 只是参数不合法 |",
+        "| 404 | 不存在 | 路由本身没有 |",
+        "",
+        "服务端哪天把一个公开端点改成需登录, 这里会立刻变成 ⚠️ 并记进 CHANGELOG。",
         "",
         "### 400 的价值",
         "",
@@ -489,10 +671,36 @@ def main():
         print(f"  {flag:>4} {rec.get('latencyMs', 0):>5}ms  {real}")
         time.sleep(0.3)
 
+    # --- 匿名复测: 实测每条路由的鉴权属性 (不靠手写标注) ---
+    anon = PickcatClient(base=c.base, min_interval=0, verbose=False)
+    auth = {}
+    plan = anon_probe_plan()
+    print(f"匿名复测 {len(plan)} 条路由的鉴权属性…")
+    for label, path in plan:
+        real = _subst(path, ctx)
+        route = path.split("?", 1)[0]
+        rec = run_probe(anon, label, real, True)
+        mode = interpret_auth(rec.get("status"), None)
+        declared = "公开" if _declared_public(route) else "需登录"
+        auth[route] = {
+            "label": label,
+            "anonStatus": rec.get("status"),
+            "anonCode": rec.get("code"),
+            "mode": mode,
+            "declared": declared,
+            # 标注与实测是否矛盾。存进快照是为了让 diff 只在"翻转"时报一次,
+            # 而不是每轮都重复报同一条 (否则工作区永远 dirty, 提交噪音不断)。
+            "mismatch": bool(mode in ("公开", "需登录") and declared != mode),
+        }
+        flag = "OK " if rec.get("status") == 200 else str(rec.get("status"))
+        print(f"  {flag:>4} {rec.get('latencyMs', 0):>5}ms  [匿名] {real}")
+        time.sleep(0.3)
+
     snap = {
         "generatedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
         "serviceUp": True,
         "probes": probes,
+        "auth": auth,
     }
     old = load_baseline()
     changes = diff_snapshots(old, snap)

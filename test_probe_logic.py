@@ -135,5 +135,71 @@ finally:
     shutil.rmtree(P.PUBLISHED_BASELINE.parent, ignore_errors=True)
 
 print()
+print("=== 测试 5: 鉴权属性解读 (匿名实测 -> 判定) ===")
+check("匿名 200 = 公开", P.interpret_auth(200, None) == "公开")
+check("匿名 401 = 需登录", P.interpret_auth(401, None) == "需登录")
+check("匿名 403 = 需权限", P.interpret_auth(403, None) == "需权限")
+check("匿名 400 = 公开(鉴权先于校验)", P.interpret_auth(400, None) == "公开")
+check("匿名 404 = 不存在", P.interpret_auth(404, None) == "不存在")
+check("匿名 -1 = 未判定", P.interpret_auth(-1, None) == "未判定")
+
+print()
+print("=== 测试 6: 匿名探测计划自动派生, 不漏不重 ===")
+plan = P.anon_probe_plan()
+routes = [p.split("?", 1)[0] for _l, p in plan]
+check("派生计划非空", len(plan) > 0, f"got={len(plan)}")
+check("每条路由只出现一次", len(routes) == len(set(routes)),
+      f"dup={len(routes) - len(set(routes))}")
+# 计划里的路由必须都能在 PROBES 里找到 (保证是从 PROBES 派生的, 不是手写漂移)
+probe_routes = {p.split("?", 1)[0] for _l, p, _pub in P.PROBES}
+check("计划路由全部来自 PROBES", set(routes) <= probe_routes,
+      f"extra={set(routes) - probe_routes}")
+check("每个 PROBES 路由都被覆盖", probe_routes <= set(routes),
+      f"missed={probe_routes - set(routes)}")
+
+print()
+print("=== 测试 7: 鉴权属性变化能被识别 (端点还在, 但谁能看变了) ===")
+tmp7 = Path(tempfile.mkdtemp())
+try:
+    P.PUBLISHED_BASELINE = tmp7 / "p.json"
+    P.CHANGELOG_KEY = tmp7 / "k.txt"
+
+    def auth_rec(mode, declared=None, mismatch=False, anon=200):
+        return {"label": "x", "anonStatus": anon, "anonCode": None,
+                "mode": mode, "declared": declared or mode,
+                "mismatch": mismatch}
+
+    base = {"probes": {"GET /a": make_probe_rec(200, ["items"], 5)},
+            "auth": {"/api/v1/a": auth_rec("公开")}}
+    new = {"probes": {"GET /a": make_probe_rec(200, ["items"], 5)},
+           "auth": {"/api/v1/a": auth_rec("需登录", "公开", True, 401)}}
+    ch = P.diff_snapshots(base, new)
+    joined = "\n".join(ch)
+    check("鉴权属性变化被识别", "鉴权属性变化" in joined, joined)
+    check("标注与实测矛盾被识别", "标注与实测不符" in joined, joined)
+
+    # 矛盾"翻转"回来 -> 只报一次"现已一致", 之后不再重复报
+    back = {"probes": {"GET /a": make_probe_rec(200, ["items"], 5)},
+            "auth": {"/api/v1/a": auth_rec("公开", "公开", False, 200)}}
+    ch2 = P.diff_snapshots(new, back)
+    check("矛盾翻转被识别", any("现已一致" in c for c in ch2), str(ch2))
+    ch3 = P.diff_snapshots(back, back)
+    check("状态稳定时不重复报矛盾", not any("标注与实测" in c for c in ch3), str(ch3))
+
+    # 路由消失
+    ch4 = P.diff_snapshots(base, {"probes": base["probes"], "auth": {}})
+    check("路由消失被识别", any("**消失(路由)**" in c for c in ch4), str(ch4))
+
+    # 缺口回归: **新路由**上的标注矛盾也必须报出来。
+    # (旧实现里 prev is None 就 continue, 新加探测项把公开端点标错根本不会报警)
+    new_bad = {"probes": {"GET /b": make_probe_rec(200, ["items"], 5)},
+               "auth": {"/api/v1/b": auth_rec("需登录", "公开", True, 401)}}
+    ch5 = P.diff_snapshots({"probes": {}, "auth": {}}, new_bad)
+    check("新路由的标注矛盾被识别",
+          any("标注与实测不符" in c for c in ch5), str(ch5))
+finally:
+    shutil.rmtree(tmp7, ignore_errors=True)
+
+print()
 print(f"=== 结果: {PASSES} PASS / {FAILS} FAIL ===")
 sys.exit(1 if FAILS else 0)

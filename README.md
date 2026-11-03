@@ -366,8 +366,9 @@ python pickcat_cli.py --account aibot post --title "..." --body "..."
 #    hint: 新号需先完成社区的入驻流程(在网页版看看等级/任务提示)升到 level 1
 ```
 
-**等级怎么升没有公开接口说明** —— `/api/v1/levels`、`/api/v1/permissions`、`/api/v1/users/{uid}/level`
-一律 404 或需要 staff 权限(`community.level.manage`), 所以以网页版的提示为准。
+**等级怎么升没有公开接口说明** —— 实测结果:
+`/api/v1/levels` 是 404 (路由根本不存在), `/api/v1/permissions` 和 `/api/v1/users/{uid}/level`
+登录后仍 403 (分别要 `access.manage` / `community.level.manage` 权限), 所以以网页版的提示为准。
 
 > 社区里有人专门开帖讨论过这个门槛(「这入站考试好像变难了」、「！我通过入站考试了！（第3次）」),
 > 从回复里能拼出大概: **level 1 需要通过"入站考试"** —— 题目是 **洛谷(Luogu) 的 P 开头题号**
@@ -422,9 +423,45 @@ python pickcat_cli.py --account aibot post --title "..." --body "..."
 | `POST /api/v1/posts` | 需登录 | 发帖/回帖 (需 Idempotency-Key, 返回 202 异步审核) |
 | `GET /api/v1/post-submissions/{id}` | 需登录 | 查审核状态 (PENDING_PROVIDER → PENDING_PUBLICATION → PUBLISHED) |
 | `GET /api/v1/post-submissions?contentRole=&status=` | 需登录 | 投稿列表 (**必须带这两个参数**; `contentRole`∈TOPIC_FIRST_POST/TOPIC_REPLY/WORK_COMMENT, `status`∈PENDING/REJECTED) |
+| `GET /api/v1/files` | 需登录 | 我的文件列表 (id / ownership / uploadedByUserId) |
+| `GET /api/v1/files/{fileId}` | 公开 | **文件原图直接可读** (返回二进制, 匿名也能取) |
+| `GET /api/v1/users/{uid}/works` | 公开 | 列某人的作品 |
+| `GET /api/v1/works/{workId}/comments` | 公开 | 作品下的评论 (`sort` ∈ `hot`/`latest`/`earliest`) |
+| `GET /api/v1/works/{workId}/comments/{楼号}` | 需登录 | 单条作品评论 (楼号是**数字**, 从 1 开始) |
+| `GET /api/v1/badges/{badgeId}` | 公开 | 徽章详情 (id 是 **slug** 如 `badge_bugfinder`, 不是 UUID) |
+| `GET /api/v1/permissions` | 需权限 | 权限表 (登录了也 403, 要 `access.manage`) |
+| `GET /api/v1/users/{uid}/level` | 需权限 | 等级管理 (登录了也 403, 要 `community.level.manage`) |
+| `GET /api/v1/emojis/{emojiId}` | 需权限 | 表情管理 (登录了也 403, 要 `community.emoji.manage`) |
 
 > 鉴权列是**匿名实测**的结果 (不带 cookie 直接打), 不是照抄文档。
-> `GET /api/v1/files` 路由存在但恒 401, 尚未开放。
+> 巡检器每轮都会**自动**做一遍匿名复测, 端点哪天从公开改成需登录会立刻报警。
+>
+> **更正**: 旧版这里写「`GET /api/v1/files` 路由存在但恒 401, 尚未开放」—— **这是错的**。
+> 匿名访问确实 401, 但**带 cookie 是 200**, 能正常列出文件; 而且 `GET /api/v1/files/{id}`
+> **匿名就能读** (直接返回图片二进制)。当时只试了匿名, 就下了"恒 401"的结论。
+> 这正是"错标注比缺端点更危险"的典型: 缺端点会被巡检发现, 错标注不会。
+
+**每条路由的 `limit` 上限各不相同**, 用超限值问出来:
+
+| 端点 | limit 上限 |
+|---|---|
+| `/api/v1/topics` | 50 |
+| `/api/v1/topics/{id}/posts` | 100 |
+| `/api/v1/works` | 50 |
+| `/api/v1/users/{uid}/posts` | 50 |
+| `/api/v1/users/{uid}/works` | 50 |
+| `/api/v1/notifications` | 50 |
+| `/api/v1/files` | 100 |
+| `/api/v1/works/{id}/comments` | 100 |
+| `/api/v1/badges` | 不接受上限 (传 101 也 200, 但 `limit` 不生效) |
+| `/api/v1/tags` / `emoji-collections` / `emojis` | 无 `limit` 参数 (传了直接 400) |
+
+**`sort` 的枚举分两套, 别混**:
+
+- 社区 feed `/api/v1/topics`: `relevance` / `latest`, 且 `relevance` 在浏览模式下会被拒
+  (`{"sort":["浏览模式不能按相关性排序"]}`)。
+- 主题内回复 `/api/v1/topics/{id}/posts`: `hot` / `latest` / `earliest`。
+
 
 **参数校验极严, 而且会泄露 schema**: 服务端用 Zod 校验 query, **未知参数直接 400**。
 所以 `?limit=20` 在 `topics` 上能用、在 `tags` 上就 400 —— 说明 `tags` 没这个参数。
