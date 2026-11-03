@@ -109,6 +109,12 @@ check("坏记录被计为顶层评论 (comment=1)", c == 1, f"got {c}")
 check("坏记录没被误算成楼中楼 (reply=1)", r == 1, f"got {r}")
 
 print("\n=== 测试 3: 坏记录不拖累其他坏状态 (at 格式异常) ===")
+# **2026-11-04 改了这里的预期** (原来是 r == 1):
+# 旧实现是 `at[:10] != day -> continue`, 即**日期坏掉的记录整条消失** ——
+# 于是今天的真实用量被少算, 每日硬上限被静默突破 (失效方向: 放行更多)。
+# 现在改用**相邻记录夹逼**归属: 账本按时间追加写, 坏记录的日期必然落在
+# 前后可读记录之间 -> 这里前后都是 TODAY -> 两条坏记录都归到今天。
+# 所以预期从 "reply=1 (坏记录消失)" 改成 "reply=3 (坏记录没丢)".
 rows = [
     rec(f"{TODAY} 01:00:00", reply_to=1, channel="comment"),
     {"kind": "reply", "replyTo": 3, "at": None},       # at 为 None
@@ -118,7 +124,7 @@ rows = [
 with FakeLedger(rows):
     c, r = B.ledger_daily_counts(TODAY)
 check("at 异常的记录被跳过而不抛异常 (comment=1)", c == 1, f"got {c}")
-check("其余记录不受影响 (reply=1)", r == 1, f"got {r}")
+check("at 异常的记录没被丢掉 (reply=3, 夹逼归到今天)", r == 3, f"got {r}")
 
 print("\n=== 测试 4: 坏记录不让 answered_floor_numbers 丢掉后续记录 ===")
 # 旧实现: 账本那段的 try 包着整个 for 循环, 一条坏记录抛异常 ->

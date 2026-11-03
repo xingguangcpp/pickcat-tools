@@ -25,6 +25,7 @@ pickcat_bot.py — Pickcat 社区半自动运营助手 (由 WorkBuddy 定时任�
 """
 
 import argparse
+import datetime
 import json
 import os
 import re
@@ -403,10 +404,19 @@ def daily_guard(st, key):
         d["replies"] = 0
     d.pop("daily_unknown", None)
     # 用账本校准 (账本是权威)。跨天的记录不参与统计。
+    #
+    # **计数失败 != 计数为 0** (2026-11-04 01:xx 修):
+    # 原来这里 except 掉异常就 led_c, led_r = 0, 0, 于是"算不出来"被当成
+    # "今天一条都没发"。只要 state 同时也丢了 (load_state 返回 {}),
+    # 两边都是 0/0 -> 硬上限静默突破 (当天实际能再发 3 评论 + 12 回复)。
+    # 失效方向仍然是"放行更多" —— 与前几轮修的 state/账本原子写同根因。
+    # 现在区分三档: 算出来是多少就是多少 / 算不出来(fail closed) / 账本本身读不出。
     try:
         led_c, led_r = ledger_daily_counts(today_key())
+        ledger_count_failed = False
     except Exception:
         led_c, led_r = 0, 0
+        ledger_count_failed = True
     d["comments"] = max(int(d.get("comments", 0) or 0), led_c)
     d["replies"] = max(int(d.get("replies", 0) or 0), led_r)
 
@@ -416,14 +426,111 @@ def daily_guard(st, key):
     try:
         from pickcat_client import ledger_unreadable
 
-        if ledger_unreadable():
-            if int(d.get("comments", 0) or 0) <= 0 and int(d.get("replies", 0) or 0) <= 0:
-                d["comments"] = MAX_COMMENTS_PER_DAY
-                d["replies"] = MAX_REPLIES_PER_DAY
-                d["daily_unknown"] = True
+        unreadable = ledger_unreadable()
     except Exception:
-        pass
+        unreadable = False
+    # **算不出来 (计数抛异常) 与 读不出账本 是同一档**: 都意味着
+    # "今天的用量查不到"。两者的处理方式必须一致, 否则就是一条绕过
+    # fail closed 的路径 (计数异常时走不到那个分支)。
+    if unreadable or ledger_count_failed:
+        if int(d.get("comments", 0) or 0) <= 0 and int(d.get("replies", 0) or 0) <= 0:
+            d["comments"] = MAX_COMMENTS_PER_DAY
+            d["replies"] = MAX_REPLIES_PER_DAY
+            d["daily_unknown"] = True
     return d
+
+
+_LEDGER_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}")
+
+
+def _ledger_day_of(rec):
+    """从账本记录里取日期 ("YYYY-MM-DD"), 取不出返回 None。"""
+    if not isinstance(rec, dict):
+        return None
+    m = _LEDGER_DATE_RE.match(str(rec.get("at") or "").strip())
+    return m.group(0) if m else None
+
+
+def _ledger_channel(rec):
+    """判断一条记录占的是哪个额度: "comment" (顶层评论) 还是 "reply" (楼中楼)。
+
+    优先用显式 channel 字段; 老记录没有则按 replyTo 推断
+    (None/1 -> 顶层评论, 其余 -> 楼中楼), 与 create_reply 传参一致。
+
+    **认不准时按顶层评论计** (保守): 顶层上限 3 比回复上限 12 严,
+    宁可少放行也不多放行。
+    """
+    ch = rec.get("channel")
+    if ch in ("comment", "reply"):
+        return ch
+    rt = rec.get("replyTo")
+    if rt is None:
+        return "comment"
+    try:
+        n = int(rt)
+    except (TypeError, ValueError):
+        return "comment"
+    return "comment" if n == 1 else "reply"
+
+
+def _ledger_day_rows(day):
+    """返回属于某一天的账本记录 (只含 kind=="reply")。
+
+    **日期读不出来的记录必须被归属到某一天, 不能整条丢掉** (2026-11-04 修):
+    原实现 `at[:10] != day -> continue` 会让日期坏掉的记录凭空消失,
+    于是今天的真实用量被少算 -> 每日硬上限被静默突破 (失效方向: 放行更多)。
+
+    归属办法 = **相邻记录夹逼**: 账本是按时间追加写的, seq 单调递增,
+    所以一条日期坏掉的记录, 它的日期必然落在**前一条可读记录**与
+    **后一条可读记录**之间。取这个区间里**最保守**的一端:
+      - 区间内包含 day -> 归给 day (它可能就是今天的)
+      - 区间内不包含 day -> 归给区间里较晚的那一天 (宁可算到"最近的可能",
+        也不让它凭空消失)
+      - 前后都没有可读记录 -> 归给 day (整本账本都坏 -> 只能按最坏算)
+    这样坏记录不会让任何一天的计数凭空少算, 而真实账本 (日期都好)
+    的归属结果与原来完全一致。
+    """
+    from pickcat_client import ledger_read
+
+    recs = []
+    for rec in ledger_read():
+        try:
+            if isinstance(rec, dict) and rec.get("kind") == "reply":
+                recs.append(rec)
+        except Exception:
+            continue
+
+    days = [_ledger_day_of(r) for r in recs]
+    out = []
+    for i, rec in enumerate(recs):
+        d = days[i]
+        if d is not None:
+            if d == day:
+                out.append(rec)
+            continue
+        # 日期坏掉了 -> 找前后最近的可读日期来夹逼
+        prev_d = None
+        for j in range(i - 1, -1, -1):
+            if days[j] is not None:
+                prev_d = days[j]
+                break
+        next_d = None
+        for j in range(i + 1, len(recs)):
+            if days[j] is not None:
+                next_d = days[j]
+                break
+        if prev_d is None and next_d is None:
+            out.append(rec)  # 整本账本都坏 -> 按最坏算, 归给今天
+            continue
+        lo = prev_d if prev_d is not None else next_d
+        hi = next_d if next_d is not None else prev_d
+        if lo > hi:
+            lo, hi = hi, lo
+        # 只在 day 落在夹逼区间内时计入 —— 区间外它必然属于别的日子,
+        # 算那一天时会被同样地计入, 所以这条记录**恰好被数一次**, 不重复也不丢失。
+        if lo <= day <= hi:
+            out.append(rec)
+    return out
 
 
 def ledger_daily_counts(day):
@@ -443,32 +550,17 @@ def ledger_daily_counts(day):
       - 每条记录单独 try, 坏记录跳过但**不让整天归零**
       - 坏记录里 replyTo 看着像顶层 (1/None) 的, 仍按顶层评论计
         (保守: 顶层评论上限更严, 宁可少放行也不多放行)
-    """
-    from pickcat_client import ledger_read
 
+    **日期读不出来的记录也不能直接跳过** (2026-11-04 01:xx 修):
+    原实现是 `at[:10] != day 就 continue` —— 日期坏掉的记录被**整条丢掉**,
+    于是今天的真实用量被少算, 硬上限照样被突破 (失效方向仍是"放行更多")。
+    改用**相邻记录夹逼**归属 (见 _ledger_day_rows)。
+    """
     c = 0
     r = 0
-    for rec in ledger_read():
+    for rec in _ledger_day_rows(day):
         try:
-            if not isinstance(rec, dict):
-                continue
-            if rec.get("kind") != "reply":
-                continue
-            if str(rec.get("at") or "")[:10] != day:
-                continue
-            ch = rec.get("channel")
-            if ch not in ("comment", "reply"):
-                rt = rec.get("replyTo")
-                if rt is None:
-                    ch = "comment"
-                else:
-                    try:
-                        n = int(rt)
-                    except (TypeError, ValueError):
-                        # replyTo 坏了: 认不准是哪种通道 -> 保守按顶层评论计
-                        # (顶层上限 3 比回复上限 12 严, 宁可少放行)
-                        n = 1
-                    ch = "comment" if n == 1 else "reply"
+            ch = _ledger_channel(rec)
             if ch == "comment":
                 c += 1
             else:
@@ -492,26 +584,9 @@ def ledger_daily_kind_counts(day):
     from pickcat_client import ledger_read
 
     reactive = proactive = unknown = 0
-    for rec in ledger_read():
+    for rec in _ledger_day_rows(day):
         try:
-            if not isinstance(rec, dict):
-                continue
-            if rec.get("kind") != "reply":
-                continue
-            if str(rec.get("at") or "")[:10] != day:
-                continue
-            ch = rec.get("channel")
-            if ch not in ("comment", "reply"):
-                rt = rec.get("replyTo")
-                if rt is None:
-                    ch = "comment"
-                else:
-                    try:
-                        k = int(rt)
-                    except (TypeError, ValueError):
-                        k = 1
-                    ch = "comment" if k == 1 else "reply"
-            if ch != "reply":
+            if _ledger_channel(rec) != "reply":
                 continue  # 顶层评论占评论额度, 不算
             r = rec.get("react")
             if r is True:

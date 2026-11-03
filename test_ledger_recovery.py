@@ -45,6 +45,10 @@ import pickcat_client as C  # noqa: E402
 FAILS = 0
 PASSES = 0
 
+# 真实账本条数基线 (测试开始时抓一份, 结束时比对 —— 见测试 8)。
+# 不能写死具体数字: 机器人每发一轮账本就 +1, 写死会造成假警报。
+_REAL_LEDGER_BASELINE = len(C.ledger_read())
+
 
 def check(name, cond, extra=""):
     global FAILS, PASSES
@@ -170,9 +174,17 @@ with FakeStateDir() as fs:
     check("判定为拒绝写回 (保留现场)", refused is True, f"refused={refused}")
 
 print("\n=== 测试 8: 真实账本/状态不受影响 ===")
+# **不能硬编码条数** (2026-11-04 修): 原来写死 "仍是 46 条",
+# 结果机器人每发一轮 (账本 +1) 这个测试就挂 —— 是个自造的假警报,
+# 会让人以为账本坏了。正确做法是**记下测试开始时的条数, 断言结束时没变**
+# (本测试全程用 FakeStateDir + 临时目录, 不碰真实账本)。
 real_rows = C.ledger_read()
 check("真实账本可读 (非空)", len(real_rows) > 0, f"got {len(real_rows)}")
-check("真实账本仍是 46 条", len(real_rows) == 46, f"got {len(real_rows)}")
+check(
+    "真实账本条数与测试开始时一致 (没被测试改动)",
+    len(real_rows) == _REAL_LEDGER_BASELINE,
+    f"baseline={_REAL_LEDGER_BASELINE} got {len(real_rows)}",
+)
 check("真实账本不算故障", C.ledger_unreadable() is False)
 
 print("=" * 60)
