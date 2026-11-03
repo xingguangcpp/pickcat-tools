@@ -102,6 +102,15 @@ MAX_REPLIES_PER_DAY = _num("PICKCAT_BOT_MAX_REPLIES_PER_DAY", 12)
 WRITE_INTERVAL = _num("PICKCAT_BOT_WRITE_INTERVAL", 8.0, float)
 # "回我"的历史楼层最多回溯多少天 (再早的回信不该翻出来回)
 REPLY_HORIZON_DAYS = _num("PICKCAT_BOT_REPLY_HORIZON_DAYS", 7)
+# --- 连发回答的合并阈值 ---
+# 对方经常把一条长回答拆成连续两三楼发: 同作者、同 replyToPostNumber、
+# 楼层号与时间都挨着。语义上这是"一条回答", 不是"几个独立问题"。
+# 判据: 同一 (作者, 父楼层) 分组内, 相邻两楼的楼层号差 <= BURST_MAX_GAP_FLOORS
+# 且时间差 <= BURST_WINDOW_SEC, 就归为同一条连发回答。
+# 楼层号差默认取 1 (严格相邻) —— 宁可漏合并, 也不要把"隔了一楼、真有问题"
+# 的楼层误判成已回, 那等于把真问题藏起来, 比重复作答更糟。
+BURST_MAX_GAP_FLOORS = _num("PICKCAT_BOT_BURST_MAX_GAP_FLOORS", 1)
+BURST_WINDOW_SEC = _num("PICKCAT_BOT_BURST_WINDOW_SEC", 300, float)
 
 
 def build_client():
@@ -287,18 +296,82 @@ def _is_recent(it, days):
     return (time.time() - ts) <= days * 86400
 
 
+def _post_ts(it):
+    """楼层的 createdAt -> unix 时间戳 (秒)。取不到就返回 None。"""
+    ca = it.get("createdAt")
+    if not ca:
+        return None
+    try:
+        return time.mktime(time.strptime(ca[:19], "%Y-%m-%dT%H:%M:%S")) - time.timezone
+    except Exception:
+        return None
+
+
+def _burst_siblings(items):
+    """把"同一人连着发的几楼"归成组, 返回 {代表楼层号: [同组楼层号...]}。
+
+    背景 (2026-11-03 实测): 用户 c 把一条回答拆成 #17/#18 两楼发 —— 同作者、
+    同 replyToPostNumber(=16)、相隔 56 秒。我回了 #18, 内容同时接住了 #17 的观点,
+    但"我回过哪些楼层"只按 replyToPostNumber 精确匹配, 于是 #17 仍被当成"没回过",
+    下一轮 notify 会把它当新的待回复, 白花回复额度还可能被平台看成刷屏。
+
+    判据 (两条都要满足, 避免把不相干的话题并进来):
+      1. 同一作者 且 同一 replyToPostNumber (同一个父楼层)
+      2. 相邻两楼的楼层号差 <= BURST_MAX_GAP_FLOORS 且时间差 <= BURST_WINDOW_SEC
+    """
+    by_parent = {}
+    for it in items:
+        rtp = it.get("replyToPostNumber")
+        a = (it.get("author") or {}).get("id")
+        if rtp is None or a is None:
+            continue
+        by_parent.setdefault((a, int(rtp)), []).append(it)
+
+    groups = {}
+    for key, lst in by_parent.items():
+        lst.sort(key=lambda x: int(x.get("postNumber") or 0))
+        cur = []
+        prev = None
+        for it in lst:
+            pn = int(it.get("postNumber") or 0)
+            ts = _post_ts(it)
+            if prev is not None:
+                ppn = int(prev.get("postNumber") or 0)
+                pts = _post_ts(prev)
+                gap_ok = (pn - ppn) <= BURST_MAX_GAP_FLOORS
+                time_ok = (
+                    (ts is None or pts is None)
+                    or abs(ts - pts) <= BURST_WINDOW_SEC
+                )
+                if not (gap_ok and time_ok):
+                    # 这一段是独立的连发回答, 收尾并另起一段。
+                    if cur:
+                        groups[cur[0]] = cur
+                    cur = []
+            cur.append(pn)
+            prev = it
+        if cur:
+            groups[cur[0]] = cur
+    return groups
+
+
 def answered_floor_numbers(c, topic_id, uid):
     """我已经回过的楼层号集合 (用来判定"这条是不是已经处理过了")。
 
-    两个来源取并集:
+    三个来源取并集:
       (a) 服务端 —— 我发过的楼层中 replyToPostNumber == N 的那些 N, 说明我在 N 楼下接过话。
           这能覆盖**用户手打**的回复 (那些不进账本)。
       (b) 账本 —— reply 命令会记录 replyTo=N。即使我这层的审核还没过、服务端暂时看不到,
           账本也能证明"我回过了", 避免重复回同一个人。
+      (c) **连发合并** —— 对方把一条回答拆成连续几楼时, 我回其中任一楼就算接住了整条。
+          见 _burst_siblings。少了这一条, 一条被拆成两楼的回答会被当成两个问题,
+          逼我把回复额度浪费在重复作答上 (2026-11-03 实测 c 的 #17/#18 就是这种)。
     """
     out = set()
+    items = []
     try:
-        for it in posts_of(c, topic_id):
+        items = posts_of(c, topic_id)
+        for it in items:
             if (it.get("author") or {}).get("id") != uid:
                 continue
             rtp = it.get("replyToPostNumber")
@@ -317,6 +390,16 @@ def answered_floor_numbers(c, topic_id, uid):
                 out.add(int(rt))
     except Exception:
         pass
+
+    # (c) 连发合并: 我回过的楼层若是某条连发回答的一员, 同组的兄弟楼层也算回过了。
+    # 只在"服务端能拉到该帖楼层"时生效 —— 拉不到就退回原来的精确匹配, 不做瞎猜。
+    if items:
+        try:
+            for siblings in _burst_siblings(items).values():
+                if any(pn in out for pn in siblings):
+                    out.update(siblings)
+        except Exception:
+            pass
     return out
 
 
