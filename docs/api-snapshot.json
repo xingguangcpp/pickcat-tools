@@ -1,14 +1,14 @@
 {
-  "generatedAt": "2026-11-03 21:48:40",
+  "generatedAt": "2026-11-03 22:16:38",
   "serviceUp": true,
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "probes": {
     "GET /api/v1/topics?limit=5": {
       "label": "社区帖子 feed",
       "path": "/api/v1/topics?limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 101,
+      "latencyMs": 84,
       "keys": [
         "items",
         "pageInfo"
@@ -100,6 +100,165 @@
         "viewCount": "int",
         "questionState.resolution": "null",
         "questionState": "object"
+      },
+      "itemGroups": {
+        "discriminator": "kind",
+        "groups": {
+          "DISCUSSION": {
+            "fields": [
+              "author",
+              "author.avatar",
+              "author.id",
+              "author.username",
+              "bookmarkCount",
+              "closedAt",
+              "createdAt",
+              "editedAt",
+              "excerpt",
+              "id",
+              "kind",
+              "lastActivityAt",
+              "likeCount",
+              "pinned",
+              "pinnedAt",
+              "pinnedGlobally",
+              "pinnedTagId",
+              "pinnedUntil",
+              "replyCount",
+              "tags",
+              "title",
+              "viewCount"
+            ],
+            "may": [
+              "author",
+              "author.avatar",
+              "author.id",
+              "author.username",
+              "bookmarkCount",
+              "closedAt",
+              "createdAt",
+              "editedAt",
+              "excerpt",
+              "id",
+              "kind",
+              "lastActivityAt",
+              "likeCount",
+              "pinned",
+              "pinnedAt",
+              "pinnedGlobally",
+              "pinnedTagId",
+              "pinnedUntil",
+              "replyCount",
+              "tags",
+              "title",
+              "viewCount"
+            ],
+            "types": {
+              "author.avatar": "object",
+              "author.id": "str",
+              "author.username": "str",
+              "author": "object",
+              "bookmarkCount": "int",
+              "closedAt": "null",
+              "createdAt": "str",
+              "editedAt": "null",
+              "excerpt": "str",
+              "id": "str",
+              "kind": "str",
+              "lastActivityAt": "str",
+              "likeCount": "int",
+              "pinned": "bool",
+              "pinnedAt": "str",
+              "pinnedGlobally": "bool",
+              "pinnedTagId": "null",
+              "pinnedUntil": "null",
+              "replyCount": "int",
+              "tags": "array",
+              "title": "str",
+              "viewCount": "int"
+            }
+          },
+          "QUESTION": {
+            "fields": [
+              "author",
+              "author.avatar",
+              "author.id",
+              "author.username",
+              "bookmarkCount",
+              "closedAt",
+              "createdAt",
+              "editedAt",
+              "excerpt",
+              "id",
+              "kind",
+              "lastActivityAt",
+              "likeCount",
+              "pinned",
+              "pinnedAt",
+              "pinnedGlobally",
+              "pinnedTagId",
+              "pinnedUntil",
+              "questionState",
+              "questionState.resolution",
+              "replyCount",
+              "tags",
+              "title",
+              "viewCount"
+            ],
+            "may": [
+              "author",
+              "author.avatar",
+              "author.id",
+              "author.username",
+              "bookmarkCount",
+              "closedAt",
+              "createdAt",
+              "editedAt",
+              "excerpt",
+              "id",
+              "kind",
+              "lastActivityAt",
+              "likeCount",
+              "pinned",
+              "pinnedAt",
+              "pinnedGlobally",
+              "pinnedTagId",
+              "pinnedUntil",
+              "questionState",
+              "questionState.resolution",
+              "replyCount",
+              "tags",
+              "title",
+              "viewCount"
+            ],
+            "types": {
+              "author.avatar": "object",
+              "author.id": "str",
+              "author.username": "str",
+              "author": "object",
+              "bookmarkCount": "int",
+              "closedAt": "null",
+              "createdAt": "str",
+              "editedAt": "null",
+              "excerpt": "str",
+              "id": "str",
+              "kind": "str",
+              "lastActivityAt": "str",
+              "likeCount": "int",
+              "pinned": "bool",
+              "pinnedAt": "null",
+              "pinnedGlobally": "bool",
+              "pinnedTagId": "null",
+              "pinnedUntil": "null",
+              "questionState.resolution": "null",
+              "questionState": "object",
+              "replyCount": "int",
+              "tags": "array",
+              "title": "str",
+              "viewCount": "int"
+            }
+          }
+        }
       }
     },
     "GET /api/v1/topics/{tid}": {
@@ -107,7 +266,7 @@
       "path": "/api/v1/topics/01a195a5-b39d-7709-ad7b-0494928c6dd3",
       "public": true,
       "status": 200,
-      "latencyMs": 154,
+      "latencyMs": 121,
       "keys": [
         "author",
         "closedAt",
@@ -205,7 +364,7 @@
       "path": "/api/v1/topics/01a195a5-b39d-7709-ad7b-0494928c6dd3/posts?limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 130,
+      "latencyMs": 84,
       "keys": [
         "items",
         "pageInfo"
@@ -225,7 +384,7 @@
       "path": "/api/v1/topics/01a195a5-b39d-7709-ad7b-0494928c6dd3/posts?limit=5&sort=latest",
       "public": true,
       "status": 200,
-      "latencyMs": 77,
+      "latencyMs": 114,
       "keys": [
         "items",
         "pageInfo"
@@ -245,7 +404,7 @@
       "path": "/api/v1/posts/01a1972c-0bef-7aa6-858c-d5938427dae4",
       "public": false,
       "status": 200,
-      "latencyMs": 111,
+      "latencyMs": 109,
       "keys": [
         "canEdit",
         "contentRole",
@@ -285,7 +444,7 @@
       "path": "/api/v1/tags",
       "public": true,
       "status": 200,
-      "latencyMs": 113,
+      "latencyMs": 109,
       "keys": [
         "items"
       ],
@@ -308,6 +467,31 @@
         "id": "str",
         "name": "str",
         "slug": "str"
+      },
+      "itemGroups": {
+        "discriminator": null,
+        "groups": {
+          "": {
+            "fields": [
+              "description",
+              "id",
+              "name",
+              "slug"
+            ],
+            "may": [
+              "description",
+              "id",
+              "name",
+              "slug"
+            ],
+            "types": {
+              "description": "str",
+              "id": "str",
+              "name": "str",
+              "slug": "str"
+            }
+          }
+        }
       }
     },
     "GET /api/v1/tags?limit=20": {
@@ -315,7 +499,7 @@
       "path": "/api/v1/tags?limit=20",
       "public": true,
       "status": 400,
-      "latencyMs": 98,
+      "latencyMs": 65,
       "code": "VALIDATION_FAILED"
     },
     "GET /api/v1/users/{uid}": {
@@ -323,7 +507,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813",
       "public": true,
       "status": 200,
-      "latencyMs": 96,
+      "latencyMs": 153,
       "keys": [
         "avatar",
         "backgroundFileId",
@@ -374,7 +558,7 @@
       "path": "/api/v1/post-submissions?contentRole=TOPIC_REPLY&status=PENDING",
       "public": false,
       "status": 200,
-      "latencyMs": 87,
+      "latencyMs": 76,
       "keys": [
         "items",
         "pageInfo"
@@ -394,7 +578,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/posts?role=reply&limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 97,
+      "latencyMs": 88,
       "keys": [
         "items",
         "pageInfo"
@@ -436,6 +620,52 @@
         "topic.title": "str",
         "topic": "object",
         "viewCount": "int"
+      },
+      "itemGroups": {
+        "discriminator": null,
+        "groups": {
+          "": {
+            "fields": [
+              "bookmarkCount",
+              "cookedHtml",
+              "createdAt",
+              "id",
+              "likeCount",
+              "postNumber",
+              "replyCount",
+              "topic",
+              "topic.id",
+              "topic.title",
+              "viewCount"
+            ],
+            "may": [
+              "bookmarkCount",
+              "cookedHtml",
+              "createdAt",
+              "id",
+              "likeCount",
+              "postNumber",
+              "replyCount",
+              "topic",
+              "topic.id",
+              "topic.title",
+              "viewCount"
+            ],
+            "types": {
+              "bookmarkCount": "int",
+              "cookedHtml": "str",
+              "createdAt": "str",
+              "id": "str",
+              "likeCount": "int",
+              "postNumber": "int",
+              "replyCount": "int",
+              "topic.id": "str",
+              "topic.title": "str",
+              "topic": "object",
+              "viewCount": "int"
+            }
+          }
+        }
       }
     },
     "GET /api/v1/users/{uid}/posts?role=bogus": {
@@ -443,7 +673,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/posts?role=bogus",
       "public": true,
       "status": 400,
-      "latencyMs": 95,
+      "latencyMs": 105,
       "code": "VALIDATION_FAILED",
       "details": "{\"role\": [\"Invalid input: expected \\\"reply\\\"\"]}"
     },
@@ -452,7 +682,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/followers?limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 100,
+      "latencyMs": 125,
       "keys": [
         "items",
         "pageInfo"
@@ -482,6 +712,34 @@
         "user.id": "str",
         "user.username": "str",
         "user": "object"
+      },
+      "itemGroups": {
+        "discriminator": null,
+        "groups": {
+          "": {
+            "fields": [
+              "followedAt",
+              "user",
+              "user.avatar",
+              "user.id",
+              "user.username"
+            ],
+            "may": [
+              "followedAt",
+              "user",
+              "user.avatar",
+              "user.id",
+              "user.username"
+            ],
+            "types": {
+              "followedAt": "str",
+              "user.avatar": "object",
+              "user.id": "str",
+              "user.username": "str",
+              "user": "object"
+            }
+          }
+        }
       }
     },
     "GET /api/v1/users/{uid}/following?limit=5": {
@@ -489,7 +747,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/following?limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 90,
+      "latencyMs": 110,
       "keys": [
         "items",
         "pageInfo"
@@ -519,6 +777,34 @@
         "user.id": "str",
         "user.username": "str",
         "user": "object"
+      },
+      "itemGroups": {
+        "discriminator": null,
+        "groups": {
+          "": {
+            "fields": [
+              "followedAt",
+              "user",
+              "user.avatar",
+              "user.id",
+              "user.username"
+            ],
+            "may": [
+              "followedAt",
+              "user",
+              "user.avatar",
+              "user.id",
+              "user.username"
+            ],
+            "types": {
+              "followedAt": "str",
+              "user.avatar": "object",
+              "user.id": "str",
+              "user.username": "str",
+              "user": "object"
+            }
+          }
+        }
       }
     },
     "GET /api/v1/notifications?limit=10": {
@@ -526,7 +812,7 @@
       "path": "/api/v1/notifications?limit=10",
       "public": false,
       "status": 200,
-      "latencyMs": 80,
+      "latencyMs": 105,
       "keys": [
         "items",
         "pageInfo"
@@ -585,6 +871,142 @@
         "type": "str",
         "details.excerpt": "str",
         "details.event": "object"
+      },
+      "itemGroups": {
+        "discriminator": "type",
+        "groups": {
+          "REPLY_CREATED": {
+            "fields": [
+              "createdAt",
+              "details",
+              "details.actor",
+              "details.post",
+              "details.topic",
+              "id",
+              "readAt",
+              "type"
+            ],
+            "may": [
+              "createdAt",
+              "details",
+              "details.actor",
+              "details.post",
+              "details.topic",
+              "id",
+              "readAt",
+              "type"
+            ],
+            "types": {
+              "createdAt": "str",
+              "details.actor": "object",
+              "details.post": "object",
+              "details.topic": "object",
+              "details": "object",
+              "id": "str",
+              "readAt": "null",
+              "type": "str"
+            }
+          },
+          "POST_LIKED": {
+            "fields": [
+              "createdAt",
+              "details",
+              "details.actor",
+              "details.post",
+              "details.topic",
+              "id",
+              "readAt",
+              "type"
+            ],
+            "may": [
+              "createdAt",
+              "details",
+              "details.actor",
+              "details.post",
+              "details.topic",
+              "id",
+              "readAt",
+              "type"
+            ],
+            "types": {
+              "createdAt": "str",
+              "details.actor": "object",
+              "details.post": "object",
+              "details.topic": "object",
+              "details": "object",
+              "id": "str",
+              "readAt": "null",
+              "type": "str"
+            }
+          },
+          "USER_MENTIONED": {
+            "fields": [
+              "createdAt",
+              "details",
+              "details.actor",
+              "details.excerpt",
+              "details.post",
+              "details.topic",
+              "id",
+              "readAt",
+              "type"
+            ],
+            "may": [
+              "createdAt",
+              "details",
+              "details.actor",
+              "details.excerpt",
+              "details.post",
+              "details.topic",
+              "id",
+              "readAt",
+              "type"
+            ],
+            "types": {
+              "createdAt": "str",
+              "details.actor": "object",
+              "details.excerpt": "str",
+              "details.post": "object",
+              "details.topic": "object",
+              "details": "object",
+              "id": "str",
+              "readAt": "null",
+              "type": "str"
+            }
+          },
+          "TOPIC_EVENT": {
+            "fields": [
+              "createdAt",
+              "details",
+              "details.actor",
+              "details.event",
+              "details.topic",
+              "id",
+              "readAt",
+              "type"
+            ],
+            "may": [
+              "createdAt",
+              "details",
+              "details.actor",
+              "details.event",
+              "details.topic",
+              "id",
+              "readAt",
+              "type"
+            ],
+            "types": {
+              "createdAt": "str",
+              "details.actor": "object",
+              "details.event": "object",
+              "details.topic": "object",
+              "details": "object",
+              "id": "str",
+              "readAt": "str",
+              "type": "str"
+            }
+          }
+        }
       }
     },
     "GET /api/v1/works?limit=5": {
@@ -592,7 +1014,7 @@
       "path": "/api/v1/works?limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 112,
+      "latencyMs": 104,
       "keys": [
         "items",
         "pageInfo"
@@ -662,6 +1084,260 @@
         "updatedAt": "str",
         "viewCount": "int",
         "workName": "str"
+      },
+      "itemGroups": {
+        "discriminator": "type",
+        "groups": {
+          "KITTEN4": {
+            "fields": [
+              "author",
+              "author.avatar",
+              "author.id",
+              "author.username",
+              "coinCount",
+              "commentCount",
+              "createdAt",
+              "description",
+              "favoriteCount",
+              "forkEnable",
+              "id",
+              "isForked",
+              "lastSyncedAt",
+              "likeCount",
+              "operation",
+              "parentUuid",
+              "preview",
+              "published",
+              "screenshotCoverUrl",
+              "sourceUserId",
+              "sourceWorkId",
+              "type",
+              "updatedAt",
+              "viewCount",
+              "workName"
+            ],
+            "may": [
+              "author",
+              "author.avatar",
+              "author.id",
+              "author.username",
+              "coinCount",
+              "commentCount",
+              "createdAt",
+              "description",
+              "favoriteCount",
+              "forkEnable",
+              "id",
+              "isForked",
+              "lastSyncedAt",
+              "likeCount",
+              "operation",
+              "parentUuid",
+              "preview",
+              "published",
+              "screenshotCoverUrl",
+              "sourceUserId",
+              "sourceWorkId",
+              "type",
+              "updatedAt",
+              "viewCount",
+              "workName"
+            ],
+            "types": {
+              "author.avatar": "object",
+              "author.id": "str",
+              "author.username": "str",
+              "author": "object",
+              "coinCount": "int",
+              "commentCount": "int",
+              "createdAt": "str",
+              "description": "str",
+              "favoriteCount": "int",
+              "forkEnable": "bool",
+              "id": "str",
+              "isForked": "bool",
+              "lastSyncedAt": "str",
+              "likeCount": "int",
+              "operation": "str",
+              "parentUuid": "null",
+              "preview": "str",
+              "published": "bool",
+              "screenshotCoverUrl": "str",
+              "sourceUserId": "str",
+              "sourceWorkId": "str",
+              "type": "str",
+              "updatedAt": "str",
+              "viewCount": "int",
+              "workName": "str"
+            }
+          },
+          "NEKO": {
+            "fields": [
+              "author",
+              "author.avatar",
+              "author.id",
+              "author.username",
+              "coinCount",
+              "commentCount",
+              "createdAt",
+              "description",
+              "favoriteCount",
+              "forkEnable",
+              "id",
+              "isForked",
+              "lastSyncedAt",
+              "likeCount",
+              "operation",
+              "parentUuid",
+              "preview",
+              "published",
+              "screenshotCoverUrl",
+              "sourceUserId",
+              "sourceWorkId",
+              "type",
+              "updatedAt",
+              "viewCount",
+              "workName"
+            ],
+            "may": [
+              "author",
+              "author.avatar",
+              "author.id",
+              "author.username",
+              "coinCount",
+              "commentCount",
+              "createdAt",
+              "description",
+              "favoriteCount",
+              "forkEnable",
+              "id",
+              "isForked",
+              "lastSyncedAt",
+              "likeCount",
+              "operation",
+              "parentUuid",
+              "preview",
+              "published",
+              "screenshotCoverUrl",
+              "sourceUserId",
+              "sourceWorkId",
+              "type",
+              "updatedAt",
+              "viewCount",
+              "workName"
+            ],
+            "types": {
+              "author.avatar": "object",
+              "author.id": "str",
+              "author.username": "str",
+              "author": "object",
+              "coinCount": "int",
+              "commentCount": "int",
+              "createdAt": "str",
+              "description": "str",
+              "favoriteCount": "int",
+              "forkEnable": "bool",
+              "id": "str",
+              "isForked": "bool",
+              "lastSyncedAt": "str",
+              "likeCount": "int",
+              "operation": "str",
+              "parentUuid": "null",
+              "preview": "str",
+              "published": "bool",
+              "screenshotCoverUrl": "str",
+              "sourceUserId": "str",
+              "sourceWorkId": "str",
+              "type": "str",
+              "updatedAt": "str",
+              "viewCount": "int",
+              "workName": "str"
+            }
+          },
+          "KITTEN3": {
+            "fields": [
+              "author",
+              "author.avatar",
+              "author.id",
+              "author.username",
+              "coinCount",
+              "commentCount",
+              "createdAt",
+              "description",
+              "favoriteCount",
+              "forkEnable",
+              "id",
+              "isForked",
+              "lastSyncedAt",
+              "likeCount",
+              "operation",
+              "parentUuid",
+              "preview",
+              "published",
+              "screenshotCoverUrl",
+              "sourceUserId",
+              "sourceWorkId",
+              "type",
+              "updatedAt",
+              "viewCount",
+              "workName"
+            ],
+            "may": [
+              "author",
+              "author.avatar",
+              "author.id",
+              "author.username",
+              "coinCount",
+              "commentCount",
+              "createdAt",
+              "description",
+              "favoriteCount",
+              "forkEnable",
+              "id",
+              "isForked",
+              "lastSyncedAt",
+              "likeCount",
+              "operation",
+              "parentUuid",
+              "preview",
+              "published",
+              "screenshotCoverUrl",
+              "sourceUserId",
+              "sourceWorkId",
+              "type",
+              "updatedAt",
+              "viewCount",
+              "workName"
+            ],
+            "types": {
+              "author.avatar": "object",
+              "author.id": "str",
+              "author.username": "str",
+              "author": "object",
+              "coinCount": "int",
+              "commentCount": "int",
+              "createdAt": "str",
+              "description": "str",
+              "favoriteCount": "int",
+              "forkEnable": "bool",
+              "id": "str",
+              "isForked": "bool",
+              "lastSyncedAt": "str",
+              "likeCount": "int",
+              "operation": "str",
+              "parentUuid": "null",
+              "preview": "str",
+              "published": "bool",
+              "screenshotCoverUrl": "str",
+              "sourceUserId": "str",
+              "sourceWorkId": "str",
+              "type": "str",
+              "updatedAt": "str",
+              "viewCount": "int",
+              "workName": "str"
+            }
+          }
+        }
       }
     },
     "GET /api/v1/badges": {
@@ -669,7 +1345,7 @@
       "path": "/api/v1/badges",
       "public": true,
       "status": 200,
-      "latencyMs": 98,
+      "latencyMs": 125,
       "keys": [
         "items"
       ],
@@ -706,6 +1382,52 @@
         "name": "str",
         "slug": "str",
         "version": "int"
+      },
+      "itemGroups": {
+        "discriminator": null,
+        "groups": {
+          "": {
+            "fields": [
+              "description",
+              "icon",
+              "id",
+              "image",
+              "image.fileId",
+              "image.height",
+              "image.url",
+              "image.width",
+              "name",
+              "slug",
+              "version"
+            ],
+            "may": [
+              "description",
+              "icon",
+              "id",
+              "image",
+              "image.fileId",
+              "image.height",
+              "image.url",
+              "image.width",
+              "name",
+              "slug",
+              "version"
+            ],
+            "types": {
+              "description": "str",
+              "icon": "str",
+              "id": "str",
+              "image.fileId": "str",
+              "image.height": "int",
+              "image.url": "str",
+              "image.width": "int",
+              "image": "object",
+              "name": "str",
+              "slug": "str",
+              "version": "int"
+            }
+          }
+        }
       }
     },
     "GET /api/v1/emoji-collections": {
@@ -713,7 +1435,7 @@
       "path": "/api/v1/emoji-collections",
       "public": true,
       "status": 200,
-      "latencyMs": 103,
+      "latencyMs": 100,
       "keys": [
         "items",
         "page",
@@ -748,6 +1470,40 @@
         "position": "int",
         "updatedAt": "str",
         "version": "str"
+      },
+      "itemGroups": {
+        "discriminator": null,
+        "groups": {
+          "": {
+            "fields": [
+              "coverUrl",
+              "createdAt",
+              "id",
+              "name",
+              "position",
+              "updatedAt",
+              "version"
+            ],
+            "may": [
+              "coverUrl",
+              "createdAt",
+              "id",
+              "name",
+              "position",
+              "updatedAt",
+              "version"
+            ],
+            "types": {
+              "coverUrl": "str",
+              "createdAt": "str",
+              "id": "str",
+              "name": "str",
+              "position": "int",
+              "updatedAt": "str",
+              "version": "str"
+            }
+          }
+        }
       }
     },
     "GET /api/v1/emojis?collectionId={cid}": {
@@ -755,7 +1511,7 @@
       "path": "/api/v1/emojis?collectionId=01a0e06b-7980-779b-8be6-e426048ed516",
       "public": true,
       "status": 200,
-      "latencyMs": 85,
+      "latencyMs": 100,
       "keys": [
         "items",
         "page",
@@ -794,6 +1550,46 @@
         "state": "str",
         "updatedAt": "str",
         "version": "str"
+      },
+      "itemGroups": {
+        "discriminator": null,
+        "groups": {
+          "": {
+            "fields": [
+              "collectionId",
+              "createdAt",
+              "id",
+              "imageUrl",
+              "mediaType",
+              "position",
+              "state",
+              "updatedAt",
+              "version"
+            ],
+            "may": [
+              "collectionId",
+              "createdAt",
+              "id",
+              "imageUrl",
+              "mediaType",
+              "position",
+              "state",
+              "updatedAt",
+              "version"
+            ],
+            "types": {
+              "collectionId": "str",
+              "createdAt": "str",
+              "id": "str",
+              "imageUrl": "str",
+              "mediaType": "str",
+              "position": "int",
+              "state": "str",
+              "updatedAt": "str",
+              "version": "str"
+            }
+          }
+        }
       }
     },
     "GET /api/v1/session": {
@@ -801,7 +1597,7 @@
       "path": "/api/v1/session",
       "public": false,
       "status": 200,
-      "latencyMs": 92,
+      "latencyMs": 115,
       "keys": [
         "createdAt",
         "expiresAt",
@@ -829,7 +1625,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/topics?limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 112,
+      "latencyMs": 108,
       "keys": [
         "items",
         "pageInfo"
@@ -893,6 +1689,85 @@
         "tags": "array",
         "title": "str",
         "viewCount": "int"
+      },
+      "itemGroups": {
+        "discriminator": "kind",
+        "groups": {
+          "DISCUSSION": {
+            "fields": [
+              "author",
+              "author.avatar",
+              "author.id",
+              "author.username",
+              "bookmarkCount",
+              "closedAt",
+              "createdAt",
+              "editedAt",
+              "excerpt",
+              "id",
+              "kind",
+              "lastActivityAt",
+              "likeCount",
+              "pinned",
+              "pinnedAt",
+              "pinnedGlobally",
+              "pinnedTagId",
+              "pinnedUntil",
+              "replyCount",
+              "tags",
+              "title",
+              "viewCount"
+            ],
+            "may": [
+              "author",
+              "author.avatar",
+              "author.id",
+              "author.username",
+              "bookmarkCount",
+              "closedAt",
+              "createdAt",
+              "editedAt",
+              "excerpt",
+              "id",
+              "kind",
+              "lastActivityAt",
+              "likeCount",
+              "pinned",
+              "pinnedAt",
+              "pinnedGlobally",
+              "pinnedTagId",
+              "pinnedUntil",
+              "replyCount",
+              "tags",
+              "title",
+              "viewCount"
+            ],
+            "types": {
+              "author.avatar": "object",
+              "author.id": "str",
+              "author.username": "str",
+              "author": "object",
+              "bookmarkCount": "int",
+              "closedAt": "null",
+              "createdAt": "str",
+              "editedAt": "null",
+              "excerpt": "str",
+              "id": "str",
+              "kind": "str",
+              "lastActivityAt": "str",
+              "likeCount": "int",
+              "pinned": "bool",
+              "pinnedAt": "null",
+              "pinnedGlobally": "bool",
+              "pinnedTagId": "null",
+              "pinnedUntil": "null",
+              "replyCount": "int",
+              "tags": "array",
+              "title": "str",
+              "viewCount": "int"
+            }
+          }
+        }
       }
     },
     "GET /api/v1/post-submissions/{sid}": {
@@ -900,7 +1775,7 @@
       "path": "/api/v1/post-submissions/01a1956c-c398-7b35-9ff2-626cd135b1dd",
       "public": false,
       "status": 200,
-      "latencyMs": 82,
+      "latencyMs": 127,
       "keys": [
         "baseRevision",
         "commentNumber",
@@ -955,7 +1830,7 @@
       "path": "/api/v1/__probe_nonexistent__",
       "public": true,
       "status": 404,
-      "latencyMs": 93,
+      "latencyMs": 71,
       "code": "ROUTE_NOT_FOUND"
     },
     "GET /api/v1/posts?limit=5": {
@@ -963,7 +1838,7 @@
       "path": "/api/v1/posts?limit=5",
       "public": true,
       "status": 404,
-      "latencyMs": 129,
+      "latencyMs": 86,
       "code": "ROUTE_NOT_FOUND"
     },
     "GET /api/v1/topics?cursor=abc": {
@@ -971,7 +1846,7 @@
       "path": "/api/v1/topics?cursor=abc",
       "public": true,
       "status": 400,
-      "latencyMs": 160,
+      "latencyMs": 75,
       "code": "INVALID_CURSOR"
     },
     "GET /api/v1/topics/{tid}/posts?limit=5&sort=bogus": {
@@ -979,7 +1854,7 @@
       "path": "/api/v1/topics/01a195a5-b39d-7709-ad7b-0494928c6dd3/posts?limit=5&sort=bogus",
       "public": true,
       "status": 400,
-      "latencyMs": 77,
+      "latencyMs": 90,
       "code": "VALIDATION_FAILED",
       "details": "{\"sort\": [\"Invalid option: expected one of \\\"hot\\\"|\\\"latest\\\"|\\\"earliest\\\"\"]}"
     },
@@ -988,7 +1863,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/posts?role=reply&sort=bogus",
       "public": true,
       "status": 400,
-      "latencyMs": 79,
+      "latencyMs": 80,
       "code": "VALIDATION_FAILED"
     },
     "GET /api/v1/notifications?limit=100": {
@@ -996,7 +1871,7 @@
       "path": "/api/v1/notifications?limit=100",
       "public": true,
       "status": 400,
-      "latencyMs": 88,
+      "latencyMs": 94,
       "code": "VALIDATION_FAILED",
       "details": "{\"limit\": [\"Too big: expected number to be <=50\"]}"
     },
@@ -1005,7 +1880,7 @@
       "path": "/api/v1/notifications?limit=50",
       "public": false,
       "status": 200,
-      "latencyMs": 127,
+      "latencyMs": 126,
       "keys": [
         "items",
         "pageInfo"
@@ -1074,6 +1949,171 @@
         "details.excerpt": "str",
         "details.event": "object",
         "details.userFollowId": "str"
+      },
+      "itemGroups": {
+        "discriminator": "type",
+        "groups": {
+          "REPLY_CREATED": {
+            "fields": [
+              "createdAt",
+              "details",
+              "details.actor",
+              "details.post",
+              "details.topic",
+              "id",
+              "readAt",
+              "type"
+            ],
+            "may": [
+              "createdAt",
+              "details",
+              "details.actor",
+              "details.post",
+              "details.topic",
+              "id",
+              "readAt",
+              "type"
+            ],
+            "types": {
+              "createdAt": "str",
+              "details.actor": "object",
+              "details.post": "object",
+              "details.topic": "object",
+              "details": "object",
+              "id": "str",
+              "readAt": "null",
+              "type": "str"
+            }
+          },
+          "POST_LIKED": {
+            "fields": [
+              "createdAt",
+              "details",
+              "details.actor",
+              "details.post",
+              "details.topic",
+              "id",
+              "readAt",
+              "type"
+            ],
+            "may": [
+              "createdAt",
+              "details",
+              "details.actor",
+              "details.post",
+              "details.topic",
+              "id",
+              "readAt",
+              "type"
+            ],
+            "types": {
+              "createdAt": "str",
+              "details.actor": "object",
+              "details.post": "object",
+              "details.topic": "object",
+              "details": "object",
+              "id": "str",
+              "readAt": "null",
+              "type": "str"
+            }
+          },
+          "USER_MENTIONED": {
+            "fields": [
+              "createdAt",
+              "details",
+              "details.actor",
+              "details.excerpt",
+              "details.post",
+              "details.topic",
+              "id",
+              "readAt",
+              "type"
+            ],
+            "may": [
+              "createdAt",
+              "details",
+              "details.actor",
+              "details.excerpt",
+              "details.post",
+              "details.topic",
+              "id",
+              "readAt",
+              "type"
+            ],
+            "types": {
+              "createdAt": "str",
+              "details.actor": "object",
+              "details.excerpt": "str",
+              "details.post": "object",
+              "details.topic": "object",
+              "details": "object",
+              "id": "str",
+              "readAt": "null",
+              "type": "str"
+            }
+          },
+          "TOPIC_EVENT": {
+            "fields": [
+              "createdAt",
+              "details",
+              "details.actor",
+              "details.event",
+              "details.topic",
+              "id",
+              "readAt",
+              "type"
+            ],
+            "may": [
+              "createdAt",
+              "details",
+              "details.actor",
+              "details.event",
+              "details.topic",
+              "id",
+              "readAt",
+              "type"
+            ],
+            "types": {
+              "createdAt": "str",
+              "details.actor": "object",
+              "details.event": "object",
+              "details.topic": "object",
+              "details": "object",
+              "id": "str",
+              "readAt": "str",
+              "type": "str"
+            }
+          },
+          "USER_FOLLOWED": {
+            "fields": [
+              "createdAt",
+              "details",
+              "details.actor",
+              "details.userFollowId",
+              "id",
+              "readAt",
+              "type"
+            ],
+            "may": [
+              "createdAt",
+              "details",
+              "details.actor",
+              "details.userFollowId",
+              "id",
+              "readAt",
+              "type"
+            ],
+            "types": {
+              "createdAt": "str",
+              "details.actor": "object",
+              "details.userFollowId": "str",
+              "details": "object",
+              "id": "str",
+              "readAt": "str",
+              "type": "str"
+            }
+          }
+        }
       }
     },
     "GET /api/v1/topics?limit=5&sort=latest": {
@@ -1081,7 +2121,7 @@
       "path": "/api/v1/topics?limit=5&sort=latest",
       "public": true,
       "status": 200,
-      "latencyMs": 118,
+      "latencyMs": 91,
       "keys": [
         "items",
         "pageInfo"
@@ -1173,6 +2213,165 @@
         "viewCount": "int",
         "questionState.resolution": "null",
         "questionState": "object"
+      },
+      "itemGroups": {
+        "discriminator": "kind",
+        "groups": {
+          "DISCUSSION": {
+            "fields": [
+              "author",
+              "author.avatar",
+              "author.id",
+              "author.username",
+              "bookmarkCount",
+              "closedAt",
+              "createdAt",
+              "editedAt",
+              "excerpt",
+              "id",
+              "kind",
+              "lastActivityAt",
+              "likeCount",
+              "pinned",
+              "pinnedAt",
+              "pinnedGlobally",
+              "pinnedTagId",
+              "pinnedUntil",
+              "replyCount",
+              "tags",
+              "title",
+              "viewCount"
+            ],
+            "may": [
+              "author",
+              "author.avatar",
+              "author.id",
+              "author.username",
+              "bookmarkCount",
+              "closedAt",
+              "createdAt",
+              "editedAt",
+              "excerpt",
+              "id",
+              "kind",
+              "lastActivityAt",
+              "likeCount",
+              "pinned",
+              "pinnedAt",
+              "pinnedGlobally",
+              "pinnedTagId",
+              "pinnedUntil",
+              "replyCount",
+              "tags",
+              "title",
+              "viewCount"
+            ],
+            "types": {
+              "author.avatar": "object",
+              "author.id": "str",
+              "author.username": "str",
+              "author": "object",
+              "bookmarkCount": "int",
+              "closedAt": "null",
+              "createdAt": "str",
+              "editedAt": "null",
+              "excerpt": "str",
+              "id": "str",
+              "kind": "str",
+              "lastActivityAt": "str",
+              "likeCount": "int",
+              "pinned": "bool",
+              "pinnedAt": "str",
+              "pinnedGlobally": "bool",
+              "pinnedTagId": "null",
+              "pinnedUntil": "null",
+              "replyCount": "int",
+              "tags": "array",
+              "title": "str",
+              "viewCount": "int"
+            }
+          },
+          "QUESTION": {
+            "fields": [
+              "author",
+              "author.avatar",
+              "author.id",
+              "author.username",
+              "bookmarkCount",
+              "closedAt",
+              "createdAt",
+              "editedAt",
+              "excerpt",
+              "id",
+              "kind",
+              "lastActivityAt",
+              "likeCount",
+              "pinned",
+              "pinnedAt",
+              "pinnedGlobally",
+              "pinnedTagId",
+              "pinnedUntil",
+              "questionState",
+              "questionState.resolution",
+              "replyCount",
+              "tags",
+              "title",
+              "viewCount"
+            ],
+            "may": [
+              "author",
+              "author.avatar",
+              "author.id",
+              "author.username",
+              "bookmarkCount",
+              "closedAt",
+              "createdAt",
+              "editedAt",
+              "excerpt",
+              "id",
+              "kind",
+              "lastActivityAt",
+              "likeCount",
+              "pinned",
+              "pinnedAt",
+              "pinnedGlobally",
+              "pinnedTagId",
+              "pinnedUntil",
+              "questionState",
+              "questionState.resolution",
+              "replyCount",
+              "tags",
+              "title",
+              "viewCount"
+            ],
+            "types": {
+              "author.avatar": "object",
+              "author.id": "str",
+              "author.username": "str",
+              "author": "object",
+              "bookmarkCount": "int",
+              "closedAt": "null",
+              "createdAt": "str",
+              "editedAt": "null",
+              "excerpt": "str",
+              "id": "str",
+              "kind": "str",
+              "lastActivityAt": "str",
+              "likeCount": "int",
+              "pinned": "bool",
+              "pinnedAt": "null",
+              "pinnedGlobally": "bool",
+              "pinnedTagId": "null",
+              "pinnedUntil": "null",
+              "questionState.resolution": "null",
+              "questionState": "object",
+              "replyCount": "int",
+              "tags": "array",
+              "title": "str",
+              "viewCount": "int"
+            }
+          }
+        }
       }
     },
     "GET /api/v1/users/{uid}/followers?limit=5&cursor=abc": {
@@ -1180,7 +2379,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/followers?limit=5&cursor=abc",
       "public": true,
       "status": 400,
-      "latencyMs": 71,
+      "latencyMs": 189,
       "code": "VALIDATION_FAILED",
       "details": "{\"cursor\": [\"游标不合法\"]}"
     },
@@ -1189,7 +2388,7 @@
       "path": "/api/v1/emoji-collections/01a0e06b-7980-779b-8be6-e426048ed516/emojis",
       "public": true,
       "status": 404,
-      "latencyMs": 91,
+      "latencyMs": 95,
       "code": "ROUTE_NOT_FOUND"
     },
     "GET /api/v1/health": {
@@ -1197,7 +2396,7 @@
       "path": "/api/v1/health",
       "public": true,
       "status": 200,
-      "latencyMs": 105,
+      "latencyMs": 154,
       "keys": [
         "service",
         "status",
@@ -1216,7 +2415,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/badges",
       "public": true,
       "status": 200,
-      "latencyMs": 112,
+      "latencyMs": 122,
       "keys": [
         "items"
       ],
@@ -1255,14 +2454,63 @@
         "grantedAt": "str",
         "revision": "str",
         "userId": "str"
+      },
+      "itemGroups": {
+        "discriminator": null,
+        "groups": {
+          "": {
+            "fields": [
+              "badge",
+              "badge.description",
+              "badge.icon",
+              "badge.id",
+              "badge.image",
+              "badge.name",
+              "badge.slug",
+              "badge.version",
+              "badgeId",
+              "grantedAt",
+              "revision",
+              "userId"
+            ],
+            "may": [
+              "badge",
+              "badge.description",
+              "badge.icon",
+              "badge.id",
+              "badge.image",
+              "badge.name",
+              "badge.slug",
+              "badge.version",
+              "badgeId",
+              "grantedAt",
+              "revision",
+              "userId"
+            ],
+            "types": {
+              "badge.description": "str",
+              "badge.icon": "str",
+              "badge.id": "str",
+              "badge.image": "object",
+              "badge.name": "str",
+              "badge.slug": "str",
+              "badge.version": "int",
+              "badge": "object",
+              "badgeId": "str",
+              "grantedAt": "str",
+              "revision": "str",
+              "userId": "str"
+            }
+          }
+        }
       }
     },
     "GET /api/v1/works/{wid}": {
       "label": "作品详情",
-      "path": "/api/v1/works/01a1a0de-a4f0-7a19-a8a9-77428003785c",
+      "path": "/api/v1/works/01a1a1ba-8e27-7817-acf2-18c78115967c",
       "public": true,
       "status": 200,
-      "latencyMs": 107,
+      "latencyMs": 103,
       "keys": [
         "author",
         "coinCount",
@@ -1322,7 +2570,7 @@
       "path": "/api/v1/emoji-collections/01a0e06b-7980-779b-8be6-e426048ed516",
       "public": true,
       "status": 200,
-      "latencyMs": 111,
+      "latencyMs": 136,
       "keys": [
         "coverUrl",
         "createdAt",
@@ -1349,7 +2597,7 @@
       "path": "/api/v1/topics?limit=5&kind=bogus",
       "public": true,
       "status": 400,
-      "latencyMs": 81,
+      "latencyMs": 68,
       "code": "VALIDATION_FAILED",
       "details": "{\"kind\": [\"Invalid option: expected one of \\\"DISCUSSION\\\"|\\\"QUESTION\\\"\"]}"
     },
@@ -1358,7 +2606,7 @@
       "path": "/api/v1/topics?limit=5&kind=DISCUSSION",
       "public": true,
       "status": 200,
-      "latencyMs": 115,
+      "latencyMs": 95,
       "keys": [
         "items",
         "pageInfo"
@@ -1422,6 +2670,85 @@
         "tags": "array",
         "title": "str",
         "viewCount": "int"
+      },
+      "itemGroups": {
+        "discriminator": "kind",
+        "groups": {
+          "DISCUSSION": {
+            "fields": [
+              "author",
+              "author.avatar",
+              "author.id",
+              "author.username",
+              "bookmarkCount",
+              "closedAt",
+              "createdAt",
+              "editedAt",
+              "excerpt",
+              "id",
+              "kind",
+              "lastActivityAt",
+              "likeCount",
+              "pinned",
+              "pinnedAt",
+              "pinnedGlobally",
+              "pinnedTagId",
+              "pinnedUntil",
+              "replyCount",
+              "tags",
+              "title",
+              "viewCount"
+            ],
+            "may": [
+              "author",
+              "author.avatar",
+              "author.id",
+              "author.username",
+              "bookmarkCount",
+              "closedAt",
+              "createdAt",
+              "editedAt",
+              "excerpt",
+              "id",
+              "kind",
+              "lastActivityAt",
+              "likeCount",
+              "pinned",
+              "pinnedAt",
+              "pinnedGlobally",
+              "pinnedTagId",
+              "pinnedUntil",
+              "replyCount",
+              "tags",
+              "title",
+              "viewCount"
+            ],
+            "types": {
+              "author.avatar": "object",
+              "author.id": "str",
+              "author.username": "str",
+              "author": "object",
+              "bookmarkCount": "int",
+              "closedAt": "null",
+              "createdAt": "str",
+              "editedAt": "null",
+              "excerpt": "str",
+              "id": "str",
+              "kind": "str",
+              "lastActivityAt": "str",
+              "likeCount": "int",
+              "pinned": "bool",
+              "pinnedAt": "null",
+              "pinnedGlobally": "bool",
+              "pinnedTagId": "null",
+              "pinnedUntil": "null",
+              "replyCount": "int",
+              "tags": "array",
+              "title": "str",
+              "viewCount": "int"
+            }
+          }
+        }
       }
     },
     "GET /api/v1/works?limit=5&kind=DISCUSSION": {
@@ -1429,7 +2756,7 @@
       "path": "/api/v1/works?limit=5&kind=DISCUSSION",
       "public": true,
       "status": 400,
-      "latencyMs": 73,
+      "latencyMs": 95,
       "code": "VALIDATION_FAILED"
     },
     "GET /api/v1/users/{uid}/topics?limit=5&kind=DISCUSSION": {
@@ -1437,7 +2764,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/topics?limit=5&kind=DISCUSSION",
       "public": true,
       "status": 400,
-      "latencyMs": 92,
+      "latencyMs": 81,
       "code": "VALIDATION_FAILED"
     },
     "GET /api/v1/users/{uid}/followers?limit=abc": {
@@ -1445,7 +2772,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/followers?limit=abc",
       "public": true,
       "status": 400,
-      "latencyMs": 74,
+      "latencyMs": 94,
       "code": "VALIDATION_FAILED",
       "details": "{\"limit\": [\"Invalid input: expected number, received NaN\"]}"
     },
@@ -1454,7 +2781,7 @@
       "path": "/api/v1/files?limit=1",
       "public": false,
       "status": 200,
-      "latencyMs": 126,
+      "latencyMs": 116,
       "keys": [
         "items",
         "pageInfo"
@@ -1480,6 +2807,28 @@
         "id": "str",
         "ownership": "str",
         "uploadedByUserId": "str"
+      },
+      "itemGroups": {
+        "discriminator": null,
+        "groups": {
+          "": {
+            "fields": [
+              "id",
+              "ownership",
+              "uploadedByUserId"
+            ],
+            "may": [
+              "id",
+              "ownership",
+              "uploadedByUserId"
+            ],
+            "types": {
+              "id": "str",
+              "ownership": "str",
+              "uploadedByUserId": "str"
+            }
+          }
+        }
       }
     },
     "GET /api/v1/files/{fid}": {
@@ -1487,7 +2836,7 @@
       "path": "/api/v1/files/01a19c50-e32e-7158-8bfc-a45ca94c96cb",
       "public": true,
       "status": 200,
-      "latencyMs": 156,
+      "latencyMs": 147,
       "keys": [
         "raw"
       ],
@@ -1502,15 +2851,15 @@
       "path": "/api/v1/files/00000000-0000-0000-0000-000000000000",
       "public": true,
       "status": 404,
-      "latencyMs": 106,
+      "latencyMs": 323,
       "code": "FILE_NOT_FOUND"
     },
     "GET /api/v1/works/{wid}/comments": {
       "label": "作品评论列表",
-      "path": "/api/v1/works/01a1a0de-a4f0-7a19-a8a9-77428003785c/comments",
+      "path": "/api/v1/works/01a1a1ba-8e27-7817-acf2-18c78115967c/comments",
       "public": true,
       "status": 200,
-      "latencyMs": 81,
+      "latencyMs": 97,
       "keys": [
         "items",
         "pageInfo"
@@ -1527,15 +2876,15 @@
     },
     "GET /api/v1/works/{wid}/comments/1": {
       "label": "作品评论(按楼号, 需登录)",
-      "path": "/api/v1/works/01a1a0de-a4f0-7a19-a8a9-77428003785c/comments/1",
+      "path": "/api/v1/works/01a1a1ba-8e27-7817-acf2-18c78115967c/comments/1",
       "public": false,
       "status": 404,
-      "latencyMs": 92,
+      "latencyMs": 71,
       "code": "WORK_COMMENT_NOT_FOUND"
     },
     "GET /api/v1/works/{wid}/comments/0": {
       "label": "作品评论楼号非法(应泄露下限)",
-      "path": "/api/v1/works/01a1a0de-a4f0-7a19-a8a9-77428003785c/comments/0",
+      "path": "/api/v1/works/01a1a1ba-8e27-7817-acf2-18c78115967c/comments/0",
       "public": false,
       "status": 400,
       "latencyMs": 92,
@@ -1547,7 +2896,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/works?limit=1",
       "public": true,
       "status": 200,
-      "latencyMs": 83,
+      "latencyMs": 152,
       "keys": [
         "items",
         "pageInfo"
@@ -1617,6 +2966,94 @@
         "updatedAt": "str",
         "viewCount": "int",
         "workName": "str"
+      },
+      "itemGroups": {
+        "discriminator": "type",
+        "groups": {
+          "KITTEN3": {
+            "fields": [
+              "author",
+              "author.avatar",
+              "author.id",
+              "author.username",
+              "coinCount",
+              "commentCount",
+              "createdAt",
+              "description",
+              "favoriteCount",
+              "forkEnable",
+              "id",
+              "isForked",
+              "lastSyncedAt",
+              "likeCount",
+              "operation",
+              "parentUuid",
+              "preview",
+              "published",
+              "screenshotCoverUrl",
+              "sourceUserId",
+              "sourceWorkId",
+              "type",
+              "updatedAt",
+              "viewCount",
+              "workName"
+            ],
+            "may": [
+              "author",
+              "author.avatar",
+              "author.id",
+              "author.username",
+              "coinCount",
+              "commentCount",
+              "createdAt",
+              "description",
+              "favoriteCount",
+              "forkEnable",
+              "id",
+              "isForked",
+              "lastSyncedAt",
+              "likeCount",
+              "operation",
+              "parentUuid",
+              "preview",
+              "published",
+              "screenshotCoverUrl",
+              "sourceUserId",
+              "sourceWorkId",
+              "type",
+              "updatedAt",
+              "viewCount",
+              "workName"
+            ],
+            "types": {
+              "author.avatar": "object",
+              "author.id": "str",
+              "author.username": "str",
+              "author": "object",
+              "coinCount": "int",
+              "commentCount": "int",
+              "createdAt": "str",
+              "description": "str",
+              "favoriteCount": "int",
+              "forkEnable": "bool",
+              "id": "str",
+              "isForked": "bool",
+              "lastSyncedAt": "str",
+              "likeCount": "int",
+              "operation": "str",
+              "parentUuid": "null",
+              "preview": "str",
+              "published": "bool",
+              "screenshotCoverUrl": "str",
+              "sourceUserId": "str",
+              "sourceWorkId": "str",
+              "type": "str",
+              "updatedAt": "str",
+              "viewCount": "int",
+              "workName": "str"
+            }
+          }
+        }
       }
     },
     "GET /api/v1/badges/{bid}": {
@@ -1624,7 +3061,7 @@
       "path": "/api/v1/badges/badge_bugfinder",
       "public": true,
       "status": 200,
-      "latencyMs": 102,
+      "latencyMs": 101,
       "keys": [
         "description",
         "icon",
@@ -1655,7 +3092,7 @@
       "path": "/api/v1/badges/__probe_no_such_badge__",
       "public": true,
       "status": 404,
-      "latencyMs": 90,
+      "latencyMs": 102,
       "code": "BADGE_NOT_FOUND"
     },
     "GET /api/v1/permissions": {
@@ -1663,7 +3100,7 @@
       "path": "/api/v1/permissions",
       "public": false,
       "status": 403,
-      "latencyMs": 99,
+      "latencyMs": 101,
       "code": "PERMISSION_DENIED",
       "details": "{\"permissionKey\": \"access.manage\"}"
     },
@@ -1672,7 +3109,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/level",
       "public": false,
       "status": 403,
-      "latencyMs": 92,
+      "latencyMs": 75,
       "code": "PERMISSION_DENIED",
       "details": "{\"permissionKey\": \"community.level.manage\"}"
     },
@@ -1681,7 +3118,7 @@
       "path": "/api/v1/emojis/gif_expression_aduan_wa",
       "public": false,
       "status": 403,
-      "latencyMs": 84,
+      "latencyMs": 104,
       "code": "PERMISSION_DENIED",
       "details": "{\"permissionKey\": \"community.emoji.manage\"}"
     },
@@ -1690,7 +3127,7 @@
       "path": "/api/v1/topics?limit=51",
       "public": true,
       "status": 400,
-      "latencyMs": 84,
+      "latencyMs": 108,
       "code": "VALIDATION_FAILED",
       "details": "{\"limit\": [\"Too big: expected number to be <=50\"]}"
     },
@@ -1699,7 +3136,7 @@
       "path": "/api/v1/works?limit=51",
       "public": true,
       "status": 400,
-      "latencyMs": 96,
+      "latencyMs": 104,
       "code": "VALIDATION_FAILED",
       "details": "{\"limit\": [\"Too big: expected number to be <=50\"]}"
     },
@@ -1708,7 +3145,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/posts?role=reply&limit=51",
       "public": true,
       "status": 400,
-      "latencyMs": 86,
+      "latencyMs": 83,
       "code": "VALIDATION_FAILED",
       "details": "{\"limit\": [\"Too big: expected number to be <=50\"]}"
     },
@@ -1717,7 +3154,7 @@
       "path": "/api/v1/topics/01a195a5-b39d-7709-ad7b-0494928c6dd3/posts?limit=101",
       "public": true,
       "status": 400,
-      "latencyMs": 66,
+      "latencyMs": 75,
       "code": "VALIDATION_FAILED",
       "details": "{\"limit\": [\"Too big: expected number to be <=100\"]}"
     },
@@ -1726,7 +3163,7 @@
       "path": "/api/v1/files?limit=101",
       "public": false,
       "status": 400,
-      "latencyMs": 94,
+      "latencyMs": 65,
       "code": "VALIDATION_FAILED",
       "details": "{\"limit\": [\"Too big: expected number to be <=100\"]}"
     },
@@ -1735,7 +3172,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/works?limit=51",
       "public": true,
       "status": 400,
-      "latencyMs": 221,
+      "latencyMs": 94,
       "code": "VALIDATION_FAILED",
       "details": "{\"limit\": [\"Too big: expected number to be <=50\"]}"
     },
@@ -1744,7 +3181,7 @@
       "path": "/api/v1/topics?limit=5&sort=bogus",
       "public": true,
       "status": 400,
-      "latencyMs": 122,
+      "latencyMs": 92,
       "code": "VALIDATION_FAILED",
       "details": "{\"sort\": [\"Invalid option: expected one of \\\"relevance\\\"|\\\"latest\\\"\"]}"
     },
@@ -1753,16 +3190,16 @@
       "path": "/api/v1/topics?limit=5&sort=relevance",
       "public": true,
       "status": 400,
-      "latencyMs": 73,
+      "latencyMs": 145,
       "code": "VALIDATION_FAILED",
       "details": "{\"sort\": [\"浏览模式不能按相关性排序\"]}"
     },
     "GET /api/v1/works/{wid}/comments?sort=bogus": {
       "label": "作品评论 sort 非法(应泄露 hot|latest|earliest)",
-      "path": "/api/v1/works/01a1a0de-a4f0-7a19-a8a9-77428003785c/comments?sort=bogus",
+      "path": "/api/v1/works/01a1a1ba-8e27-7817-acf2-18c78115967c/comments?sort=bogus",
       "public": true,
       "status": 400,
-      "latencyMs": 78,
+      "latencyMs": 66,
       "code": "VALIDATION_FAILED",
       "details": "{\"sort\": [\"Invalid option: expected one of \\\"hot\\\"|\\\"latest\\\"|\\\"earliest\\\"\"]}"
     },
@@ -1771,7 +3208,7 @@
       "path": "/api/v1/emoji-collections?limit=5",
       "public": true,
       "status": 400,
-      "latencyMs": 73,
+      "latencyMs": 86,
       "code": "VALIDATION_FAILED"
     },
     "GET /api/v1/emojis?collectionId={cid}&limit=5": {
@@ -1779,7 +3216,7 @@
       "path": "/api/v1/emojis?collectionId=01a0e06b-7980-779b-8be6-e426048ed516&limit=5",
       "public": true,
       "status": 400,
-      "latencyMs": 96,
+      "latencyMs": 111,
       "code": "VALIDATION_FAILED"
     },
     "GET /api/v1/badges?limit=1": {
@@ -1787,7 +3224,7 @@
       "path": "/api/v1/badges?limit=1",
       "public": true,
       "status": 200,
-      "latencyMs": 149,
+      "latencyMs": 89,
       "keys": [
         "items"
       ],
@@ -1824,6 +3261,52 @@
         "name": "str",
         "slug": "str",
         "version": "int"
+      },
+      "itemGroups": {
+        "discriminator": null,
+        "groups": {
+          "": {
+            "fields": [
+              "description",
+              "icon",
+              "id",
+              "image",
+              "image.fileId",
+              "image.height",
+              "image.url",
+              "image.width",
+              "name",
+              "slug",
+              "version"
+            ],
+            "may": [
+              "description",
+              "icon",
+              "id",
+              "image",
+              "image.fileId",
+              "image.height",
+              "image.url",
+              "image.width",
+              "name",
+              "slug",
+              "version"
+            ],
+            "types": {
+              "description": "str",
+              "icon": "str",
+              "id": "str",
+              "image.fileId": "str",
+              "image.height": "int",
+              "image.url": "str",
+              "image.width": "int",
+              "image": "object",
+              "name": "str",
+              "slug": "str",
+              "version": "int"
+            }
+          }
+        }
       }
     }
   },
