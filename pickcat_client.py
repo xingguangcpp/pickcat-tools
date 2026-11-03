@@ -277,30 +277,18 @@ def ledger_append(record):
     另外先写 .bak: 账本被写坏时还能从备份恢复历史, 而不是只剩一个空列表。
     """
     try:
-        p = state_file(".wm_ledger.json")
-        data = []
-        if p.exists():
-            try:
-                data = json.loads(p.read_text(encoding="utf-8"))
-                if not isinstance(data, list):
-                    data = []
-            except Exception:
-                # 主文件坏了: 退回备份, 别把历史直接清空
-                bak = p.with_name(p.name + ".bak")
-                if bak.exists():
-                    try:
-                        data = json.loads(bak.read_text(encoding="utf-8"))
-                        if not isinstance(data, list):
-                            data = []
-                    except Exception:
-                        data = []
+        p, bak = _ledger_paths()
+        # **基于 ledger_read() 的结果追加, 不要自己再读一遍主文件**:
+        # 主文件缺失/损坏时, 自己读会拿到 [], 追加一条就把仅存的历史
+        # (备份里的 46 条) 覆盖掉 —— 那等于"下一次写操作抹掉全部历史"。
+        # ledger_read() 已经统一处理了主备择优。
+        data = list(ledger_read())
         data.append(record)
         _atomic_write_json(p, data)
         # 备份写**新内容** (与主文件一致), 不是写之前的老内容。
         # 差别很实在: 备份落后一条的话, 主文件损坏后退回备份就少算了一次写操作
         # —— 当天计数少 1, 上限又松了一点。备份必须与主文件等价。
         try:
-            bak = p.with_name(p.name + ".bak")
             _atomic_write_json(bak, data)
         except Exception:
             pass
@@ -311,25 +299,31 @@ def ledger_append(record):
 def ledger_unreadable():
     """账本文件在磁盘上、却读不出内容 -> True (故障, 不是"没有记录")。
 
-    必须区分两种"空":
-      - 文件根本不存在 (全新环境) -> 正常, 用量确实是 0
-      - 文件存在且非空, 但主文件和 .bak 都解析失败 -> **故障**
+    必须区分三种状态:
+      - 主文件和备份都不存在 (全新环境) -> 正常, 用量确实是 0
+      - 文件存在且能解析 (哪怕是空列表) -> 正常, 用量确实是 0
+      - 文件存在但解析失败 (半截 JSON / 不是数组) -> **故障**
 
     第二种若当成"没有记录", 每日计数会归零 -> 硬上限 (评论<=3 / 回复<=12)
     被静默突破, 失效方向恰好是"放行更多"。所以这里显式报出来。
+
+    判定要看**主备两份**: 只看主文件的话, 主文件缺失但备份里还躺着 46 条
+    历史时会被误判成"全新环境" —— 而实际上历史还在, 只是主文件丢了。
     """
-    p = state_file(".wm_ledger.json")
+    p, bak = _ledger_paths()
     try:
-        if not p.exists():
-            return False
-        if p.stat().st_size <= 2:
-            return False  # "[]" 之类的空壳, 算正常
-    except Exception:
-        return False
-    try:
-        return len(ledger_read()) == 0
+        main, ms = _read_json_list(p)
+        backup, bs = _read_json_list(bak)
     except Exception:
         return True
+    if ms == "missing" and bs == "missing":
+        return False  # 全新环境, 用量确实是 0
+    if ms == "ok" or bs == "ok":
+        # 至少有一份能解析 -> 记录读得到 (哪怕是空列表) -> 不是故障
+        return False
+    # 有文件在磁盘上, 却一份都解析不出来 (主坏且无备, 或主备都坏)
+    # -> 用量查不到 -> 故障, 让 daily_guard fail closed
+    return True
 
 
 def ledger_write_all(records):
@@ -337,31 +331,75 @@ def ledger_write_all(records):
 
     备份同步更新: 否则备份会一直落后于主文件, 真出事时退回备份等于少记录。
     """
-    p = state_file(".wm_ledger.json")
+    p, bak = _ledger_paths()
     _atomic_write_json(p, records)
     try:
-        _atomic_write_json(p.with_name(p.name + ".bak"), records)
+        _atomic_write_json(bak, records)
     except Exception:
         pass
 
 
-def ledger_read():
-    if not state_file(".wm_ledger.json").exists():
-        return []
+def _ledger_paths():
+    """账本主文件与备份文件的路径。
+
+    **读侧与写侧必须用同一个函数算路径** (2026-11-03 16:xx 修):
+    原来写侧用 `p.with_name(p.name + ".bak")`, 读侧却用
+    `state_file(".wm_ledger.json").with_name(".wm_ledger.json.bak")` ——
+    在非 default 档案下两者指向**不同文件**
+    (写: .state/bob.wm_ledger.json.bak / 读: .state/.wm_ledger.json.bak),
+    于是备份写进去却读不到, 备份机制在多档案下等于完全失效。
+    """
+    p = state_file(".wm_ledger.json")
+    return p, p.with_name(p.name + ".bak")
+
+
+def _read_json_list(path):
+    """读一个 JSON 列表文件 -> (records, status)。
+
+    status 三态, 不能合并成"空/非空":
+      - "missing" 文件不存在 (全新环境, 不是故障)
+      - "ok"      解析成功 (可能是空列表 —— 那是"确实没有记录")
+      - "corrupt" 文件在磁盘上但解析失败 (半截 JSON / 不是数组) —— **故障**
+    """
     try:
-        data = json.loads(state_file(".wm_ledger.json").read_text(encoding="utf-8"))
-        return data if isinstance(data, list) else []
+        if not path.exists():
+            return [], "missing"
+        raw = path.read_text(encoding="utf-8")
     except Exception:
-        # 主文件解析失败: 退回 .bak, 而不是当成"从来没有记录"
-        # (返回 [] 会让每日计数归零 = 硬上限静默失效)
-        bak = state_file(".wm_ledger.json").with_name(".wm_ledger.json.bak")
-        if bak.exists():
-            try:
-                data = json.loads(bak.read_text(encoding="utf-8"))
-                return data if isinstance(data, list) else []
-            except Exception:
-                return []
-        return []
+        return [], "corrupt"
+    try:
+        data = json.loads(raw)
+    except Exception:
+        return [], "corrupt"
+    if not isinstance(data, list):
+        return [], "corrupt"
+    return data, "ok"
+
+
+def ledger_read():
+    """读账本记录。
+
+    **必须能容错**: 主文件可能
+      - 缺失 (误删 / 被移动 / 恢复时只带回来了备份)
+      - 损坏 (写到一半被打断, 留下半截 JSON)
+      - 被写成合法的空列表 [] (某些同步/清理工具会干这事)
+    这三种情况都退回 .bak, 而不是当成"从来没有记录" ——
+    返回 [] 会让每日计数归零 = **硬上限 (评论<=3 / 回复<=12) 被静默突破**,
+    而且失效方向恰好是"放行更多"。
+
+    主备取**记录更多**的那一份: 原子写保证两者本应等价, 但主写成功而备写
+    失败 (或反过来) 时, 多的一份才是完整的那份。
+    """
+    p, bak = _ledger_paths()
+    main, ms = _read_json_list(p)
+    backup, bs = _read_json_list(bak)
+    if len(backup) > len(main):
+        return backup
+    if ms == "ok":
+        return main
+    if bs == "ok":
+        return backup
+    return []
 
 
 def wm_encode(seq):

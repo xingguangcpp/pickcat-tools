@@ -865,9 +865,17 @@ def cmd_refresh(c, args):
     #   是空的 (主文件损坏 + 备份也坏了), 这行就把空列表写回去, 把历史
     #   **永久**抹掉 —— 每日计数随之归零, 硬上限静默失效。
     #   所以: 账本本来有内容、这轮却读到空 -> 拒绝写回, 保留现场。
-    ledger_path = state_file(".wm_ledger.json")
+    # **主备两份都要看** (2026-11-03 16:xx 修): 只看主文件的话,
+    #   "主文件丢失 + 备份也坏了" 时 prev_size=0, 闸门不触发,
+    #   空列表会把仅存的备份现场一起抹掉。
+    from pickcat_client import _ledger_paths
+
+    ledger_path, ledger_bak_path = _ledger_paths()
     try:
-        prev_size = ledger_path.stat().st_size if ledger_path.exists() else 0
+        prev_size = max(
+            ledger_path.stat().st_size if ledger_path.exists() else 0,
+            ledger_bak_path.stat().st_size if ledger_bak_path.exists() else 0,
+        )
     except Exception:
         prev_size = 0
     if prev_size > 2 and not ledger:
