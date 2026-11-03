@@ -85,3 +85,8 @@
 - **新增** `GET /api/v1/emoji-collections?limit=5` — 表情包集带 limit(该端点无此参数) (HTTP 400)
 - **新增** `GET /api/v1/emojis?collectionId={cid}&limit=5` — 表情包带 limit(该端点无此参数) (HTTP 400)
 - **新增** `GET /api/v1/badges?limit=1` — 徽章带 limit(该端点接受但不生效) (HTTP 200)
+
+## 2026-11-03 15:05:07
+
+- `/api/v1/works/{wid}/comments/0` 探针表标注变化: 公开 → **需登录**
+- `/api/v1/works/{wid}/comments/0` 标注与实测现已一致 (需登录)

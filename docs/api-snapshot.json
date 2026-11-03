@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-03 15:03:24",
+  "generatedAt": "2026-11-03 15:05:07",
   "serviceUp": true,
   "probes": {
     "GET /api/v1/topics?limit=5": {
@@ -7,7 +7,7 @@
       "path": "/api/v1/topics?limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 87,
+      "latencyMs": 90,
       "keys": [
         "items",
         "pageInfo"
@@ -20,7 +20,7 @@
       "path": "/api/v1/topics/01a195a5-b39d-7709-ad7b-0494928c6dd3",
       "public": true,
       "status": 200,
-      "latencyMs": 195,
+      "latencyMs": 172,
       "keys": [
         "author",
         "closedAt",
@@ -42,7 +42,7 @@
       "path": "/api/v1/topics/01a195a5-b39d-7709-ad7b-0494928c6dd3/posts?limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 96,
+      "latencyMs": 93,
       "keys": [
         "items",
         "pageInfo"
@@ -55,7 +55,7 @@
       "path": "/api/v1/topics/01a195a5-b39d-7709-ad7b-0494928c6dd3/posts?limit=5&sort=latest",
       "public": true,
       "status": 200,
-      "latencyMs": 139,
+      "latencyMs": 110,
       "keys": [
         "items",
         "pageInfo"
@@ -68,7 +68,7 @@
       "path": "/api/v1/posts/01a1972c-0bef-7aa6-858c-d5938427dae4",
       "public": false,
       "status": 200,
-      "latencyMs": 1141,
+      "latencyMs": 1102,
       "keys": [
         "canEdit",
         "contentRole",
@@ -90,7 +90,7 @@
       "path": "/api/v1/tags",
       "public": true,
       "status": 200,
-      "latencyMs": 86,
+      "latencyMs": 105,
       "keys": [
         "items"
       ],
@@ -101,7 +101,7 @@
       "path": "/api/v1/tags?limit=20",
       "public": true,
       "status": 400,
-      "latencyMs": 92,
+      "latencyMs": 117,
       "code": "VALIDATION_FAILED"
     },
     "GET /api/v1/users/{uid}": {
@@ -109,7 +109,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813",
       "public": true,
       "status": 200,
-      "latencyMs": 122,
+      "latencyMs": 94,
       "keys": [
         "avatar",
         "backgroundFileId",
@@ -131,7 +131,7 @@
       "path": "/api/v1/post-submissions?contentRole=TOPIC_REPLY&status=PENDING",
       "public": false,
       "status": 200,
-      "latencyMs": 193,
+      "latencyMs": 110,
       "keys": [
         "items",
         "pageInfo"
@@ -144,7 +144,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/posts?role=reply&limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 111,
+      "latencyMs": 131,
       "keys": [
         "items",
         "pageInfo"
@@ -157,7 +157,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/posts?role=bogus",
       "public": true,
       "status": 400,
-      "latencyMs": 115,
+      "latencyMs": 90,
       "code": "VALIDATION_FAILED",
       "details": "{\"role\": [\"Invalid input: expected \\\"reply\\\"\"]}"
     },
@@ -166,7 +166,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/followers?limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 76,
+      "latencyMs": 154,
       "keys": [
         "items",
         "pageInfo"
@@ -179,7 +179,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/following?limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 145,
+      "latencyMs": 107,
       "keys": [
         "items",
         "pageInfo"
@@ -192,7 +192,7 @@
       "path": "/api/v1/notifications?limit=10",
       "public": false,
       "status": 200,
-      "latencyMs": 109,
+      "latencyMs": 104,
       "keys": [
         "items",
         "pageInfo"
@@ -205,7 +205,7 @@
       "path": "/api/v1/works?limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 532,
+      "latencyMs": 120,
       "keys": [
         "items",
         "pageInfo"
@@ -218,7 +218,7 @@
       "path": "/api/v1/badges",
       "public": true,
       "status": 200,
-      "latencyMs": 112,
+      "latencyMs": 100,
       "keys": [
         "items"
       ],
@@ -229,7 +229,7 @@
       "path": "/api/v1/emoji-collections",
       "public": true,
       "status": 200,
-      "latencyMs": 75,
+      "latencyMs": 145,
       "keys": [
         "items",
         "page",
@@ -243,7 +243,7 @@
       "path": "/api/v1/emojis?collectionId=01a0e06b-7980-779b-8be6-e426048ed516",
       "public": true,
       "status": 200,
-      "latencyMs": 90,
+      "latencyMs": 316,
       "keys": [
         "items",
         "page",
@@ -257,7 +257,7 @@
       "path": "/api/v1/session",
       "public": false,
       "status": 200,
-      "latencyMs": 104,
+      "latencyMs": 118,
       "keys": [
         "createdAt",
         "expiresAt",
@@ -271,7 +271,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/topics?limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 136,
+      "latencyMs": 74,
       "keys": [
         "items",
         "pageInfo"
@@ -284,7 +284,7 @@
       "path": "/api/v1/post-submissions/01a1956c-c398-7b35-9ff2-626cd135b1dd",
       "public": false,
       "status": 200,
-      "latencyMs": 97,
+      "latencyMs": 83,
       "keys": [
         "baseRevision",
         "commentNumber",
@@ -306,7 +306,7 @@
       "path": "/api/v1/__probe_nonexistent__",
       "public": true,
       "status": 404,
-      "latencyMs": 118,
+      "latencyMs": 367,
       "code": "ROUTE_NOT_FOUND"
     },
     "GET /api/v1/posts?limit=5": {
@@ -314,7 +314,7 @@
       "path": "/api/v1/posts?limit=5",
       "public": true,
       "status": 404,
-      "latencyMs": 64,
+      "latencyMs": 74,
       "code": "ROUTE_NOT_FOUND"
     },
     "GET /api/v1/topics?cursor=abc": {
@@ -322,7 +322,7 @@
       "path": "/api/v1/topics?cursor=abc",
       "public": true,
       "status": 400,
-      "latencyMs": 91,
+      "latencyMs": 141,
       "code": "INVALID_CURSOR"
     },
     "GET /api/v1/topics/{tid}/posts?limit=5&sort=bogus": {
@@ -330,7 +330,7 @@
       "path": "/api/v1/topics/01a195a5-b39d-7709-ad7b-0494928c6dd3/posts?limit=5&sort=bogus",
       "public": true,
       "status": 400,
-      "latencyMs": 77,
+      "latencyMs": 87,
       "code": "VALIDATION_FAILED",
       "details": "{\"sort\": [\"Invalid option: expected one of \\\"hot\\\"|\\\"latest\\\"|\\\"earliest\\\"\"]}"
     },
@@ -347,7 +347,7 @@
       "path": "/api/v1/notifications?limit=100",
       "public": true,
       "status": 400,
-      "latencyMs": 75,
+      "latencyMs": 88,
       "code": "VALIDATION_FAILED",
       "details": "{\"limit\": [\"Too big: expected number to be <=50\"]}"
     },
@@ -356,7 +356,7 @@
       "path": "/api/v1/notifications?limit=50",
       "public": false,
       "status": 200,
-      "latencyMs": 130,
+      "latencyMs": 715,
       "keys": [
         "items",
         "pageInfo"
@@ -369,7 +369,7 @@
       "path": "/api/v1/topics?limit=5&sort=latest",
       "public": true,
       "status": 200,
-      "latencyMs": 86,
+      "latencyMs": 103,
       "keys": [
         "items",
         "pageInfo"
@@ -382,7 +382,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/followers?limit=5&cursor=abc",
       "public": true,
       "status": 400,
-      "latencyMs": 67,
+      "latencyMs": 61,
       "code": "VALIDATION_FAILED",
       "details": "{\"cursor\": [\"游标不合法\"]}"
     },
@@ -391,7 +391,7 @@
       "path": "/api/v1/emoji-collections/01a0e06b-7980-779b-8be6-e426048ed516/emojis",
       "public": true,
       "status": 404,
-      "latencyMs": 125,
+      "latencyMs": 91,
       "code": "ROUTE_NOT_FOUND"
     },
     "GET /api/v1/health": {
@@ -399,7 +399,7 @@
       "path": "/api/v1/health",
       "public": true,
       "status": 200,
-      "latencyMs": 117,
+      "latencyMs": 547,
       "keys": [
         "service",
         "status",
@@ -412,7 +412,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/badges",
       "public": true,
       "status": 200,
-      "latencyMs": 86,
+      "latencyMs": 120,
       "keys": [
         "items"
       ],
@@ -423,7 +423,7 @@
       "path": "/api/v1/works/01a19cc9-544d-7868-bc0d-fa7fb289ce5a",
       "public": true,
       "status": 200,
-      "latencyMs": 97,
+      "latencyMs": 154,
       "keys": [
         "author",
         "coinCount",
@@ -445,7 +445,7 @@
       "path": "/api/v1/emoji-collections/01a0e06b-7980-779b-8be6-e426048ed516",
       "public": true,
       "status": 200,
-      "latencyMs": 86,
+      "latencyMs": 94,
       "keys": [
         "coverUrl",
         "createdAt",
@@ -462,7 +462,7 @@
       "path": "/api/v1/topics?limit=5&kind=bogus",
       "public": true,
       "status": 400,
-      "latencyMs": 115,
+      "latencyMs": 78,
       "code": "VALIDATION_FAILED",
       "details": "{\"kind\": [\"Invalid option: expected one of \\\"DISCUSSION\\\"|\\\"QUESTION\\\"\"]}"
     },
@@ -471,7 +471,7 @@
       "path": "/api/v1/topics?limit=5&kind=DISCUSSION",
       "public": true,
       "status": 200,
-      "latencyMs": 102,
+      "latencyMs": 108,
       "keys": [
         "items",
         "pageInfo"
@@ -484,7 +484,7 @@
       "path": "/api/v1/works?limit=5&kind=DISCUSSION",
       "public": true,
       "status": 400,
-      "latencyMs": 77,
+      "latencyMs": 74,
       "code": "VALIDATION_FAILED"
     },
     "GET /api/v1/users/{uid}/topics?limit=5&kind=DISCUSSION": {
@@ -492,7 +492,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/topics?limit=5&kind=DISCUSSION",
       "public": true,
       "status": 400,
-      "latencyMs": 74,
+      "latencyMs": 128,
       "code": "VALIDATION_FAILED"
     },
     "GET /api/v1/users/{uid}/followers?limit=abc": {
@@ -500,7 +500,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/followers?limit=abc",
       "public": true,
       "status": 400,
-      "latencyMs": 69,
+      "latencyMs": 97,
       "code": "VALIDATION_FAILED",
       "details": "{\"limit\": [\"Invalid input: expected number, received NaN\"]}"
     },
@@ -509,7 +509,7 @@
       "path": "/api/v1/files?limit=1",
       "public": false,
       "status": 200,
-      "latencyMs": 339,
+      "latencyMs": 95,
       "keys": [
         "items",
         "pageInfo"
@@ -522,7 +522,7 @@
       "path": "/api/v1/files/01a19c50-e32e-7158-8bfc-a45ca94c96cb",
       "public": true,
       "status": 200,
-      "latencyMs": 238,
+      "latencyMs": 151,
       "keys": [
         "raw"
       ],
@@ -533,7 +533,7 @@
       "path": "/api/v1/files/00000000-0000-0000-0000-000000000000",
       "public": true,
       "status": 404,
-      "latencyMs": 108,
+      "latencyMs": 113,
       "code": "FILE_NOT_FOUND"
     },
     "GET /api/v1/works/{wid}/comments": {
@@ -541,7 +541,7 @@
       "path": "/api/v1/works/01a19cc9-544d-7868-bc0d-fa7fb289ce5a/comments",
       "public": true,
       "status": 200,
-      "latencyMs": 81,
+      "latencyMs": 168,
       "keys": [
         "items",
         "pageInfo"
@@ -554,15 +554,15 @@
       "path": "/api/v1/works/01a19cc9-544d-7868-bc0d-fa7fb289ce5a/comments/1",
       "public": false,
       "status": 404,
-      "latencyMs": 74,
+      "latencyMs": 82,
       "code": "WORK_COMMENT_NOT_FOUND"
     },
     "GET /api/v1/works/{wid}/comments/0": {
       "label": "作品评论楼号非法(应泄露下限)",
       "path": "/api/v1/works/01a19cc9-544d-7868-bc0d-fa7fb289ce5a/comments/0",
-      "public": true,
+      "public": false,
       "status": 400,
-      "latencyMs": 74,
+      "latencyMs": 67,
       "code": "VALIDATION_FAILED",
       "details": "{\"commentNumber\": [\"Too small: expected number to be >=1\"]}"
     },
@@ -571,7 +571,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/works?limit=1",
       "public": true,
       "status": 200,
-      "latencyMs": 99,
+      "latencyMs": 95,
       "keys": [
         "items",
         "pageInfo"
@@ -584,7 +584,7 @@
       "path": "/api/v1/badges/badge_bugfinder",
       "public": true,
       "status": 200,
-      "latencyMs": 138,
+      "latencyMs": 78,
       "keys": [
         "description",
         "icon",
@@ -601,7 +601,7 @@
       "path": "/api/v1/badges/__probe_no_such_badge__",
       "public": true,
       "status": 404,
-      "latencyMs": 72,
+      "latencyMs": 73,
       "code": "BADGE_NOT_FOUND"
     },
     "GET /api/v1/permissions": {
@@ -609,7 +609,7 @@
       "path": "/api/v1/permissions",
       "public": false,
       "status": 403,
-      "latencyMs": 120,
+      "latencyMs": 102,
       "code": "PERMISSION_DENIED",
       "details": "{\"permissionKey\": \"access.manage\"}"
     },
@@ -618,7 +618,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/level",
       "public": false,
       "status": 403,
-      "latencyMs": 97,
+      "latencyMs": 82,
       "code": "PERMISSION_DENIED",
       "details": "{\"permissionKey\": \"community.level.manage\"}"
     },
@@ -627,7 +627,7 @@
       "path": "/api/v1/emojis/gif_expression_aduan_wa",
       "public": false,
       "status": 403,
-      "latencyMs": 109,
+      "latencyMs": 75,
       "code": "PERMISSION_DENIED",
       "details": "{\"permissionKey\": \"community.emoji.manage\"}"
     },
@@ -636,7 +636,7 @@
       "path": "/api/v1/topics?limit=51",
       "public": true,
       "status": 400,
-      "latencyMs": 91,
+      "latencyMs": 68,
       "code": "VALIDATION_FAILED",
       "details": "{\"limit\": [\"Too big: expected number to be <=50\"]}"
     },
@@ -645,7 +645,7 @@
       "path": "/api/v1/works?limit=51",
       "public": true,
       "status": 400,
-      "latencyMs": 69,
+      "latencyMs": 64,
       "code": "VALIDATION_FAILED",
       "details": "{\"limit\": [\"Too big: expected number to be <=50\"]}"
     },
@@ -654,7 +654,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/posts?role=reply&limit=51",
       "public": true,
       "status": 400,
-      "latencyMs": 103,
+      "latencyMs": 76,
       "code": "VALIDATION_FAILED",
       "details": "{\"limit\": [\"Too big: expected number to be <=50\"]}"
     },
@@ -663,7 +663,7 @@
       "path": "/api/v1/topics/01a195a5-b39d-7709-ad7b-0494928c6dd3/posts?limit=101",
       "public": true,
       "status": 400,
-      "latencyMs": 86,
+      "latencyMs": 708,
       "code": "VALIDATION_FAILED",
       "details": "{\"limit\": [\"Too big: expected number to be <=100\"]}"
     },
@@ -672,7 +672,7 @@
       "path": "/api/v1/files?limit=101",
       "public": false,
       "status": 400,
-      "latencyMs": 104,
+      "latencyMs": 88,
       "code": "VALIDATION_FAILED",
       "details": "{\"limit\": [\"Too big: expected number to be <=100\"]}"
     },
@@ -681,7 +681,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/works?limit=51",
       "public": true,
       "status": 400,
-      "latencyMs": 87,
+      "latencyMs": 83,
       "code": "VALIDATION_FAILED",
       "details": "{\"limit\": [\"Too big: expected number to be <=50\"]}"
     },
@@ -690,7 +690,7 @@
       "path": "/api/v1/topics?limit=5&sort=bogus",
       "public": true,
       "status": 400,
-      "latencyMs": 78,
+      "latencyMs": 89,
       "code": "VALIDATION_FAILED",
       "details": "{\"sort\": [\"Invalid option: expected one of \\\"relevance\\\"|\\\"latest\\\"\"]}"
     },
@@ -699,7 +699,7 @@
       "path": "/api/v1/topics?limit=5&sort=relevance",
       "public": true,
       "status": 400,
-      "latencyMs": 272,
+      "latencyMs": 61,
       "code": "VALIDATION_FAILED",
       "details": "{\"sort\": [\"浏览模式不能按相关性排序\"]}"
     },
@@ -708,7 +708,7 @@
       "path": "/api/v1/works/01a19cc9-544d-7868-bc0d-fa7fb289ce5a/comments?sort=bogus",
       "public": true,
       "status": 400,
-      "latencyMs": 427,
+      "latencyMs": 62,
       "code": "VALIDATION_FAILED",
       "details": "{\"sort\": [\"Invalid option: expected one of \\\"hot\\\"|\\\"latest\\\"|\\\"earliest\\\"\"]}"
     },
@@ -717,7 +717,7 @@
       "path": "/api/v1/emoji-collections?limit=5",
       "public": true,
       "status": 400,
-      "latencyMs": 97,
+      "latencyMs": 73,
       "code": "VALIDATION_FAILED"
     },
     "GET /api/v1/emojis?collectionId={cid}&limit=5": {
@@ -725,7 +725,7 @@
       "path": "/api/v1/emojis?collectionId=01a0e06b-7980-779b-8be6-e426048ed516&limit=5",
       "public": true,
       "status": 400,
-      "latencyMs": 66,
+      "latencyMs": 63,
       "code": "VALIDATION_FAILED"
     },
     "GET /api/v1/badges?limit=1": {
@@ -733,7 +733,7 @@
       "path": "/api/v1/badges?limit=1",
       "public": true,
       "status": 200,
-      "latencyMs": 97,
+      "latencyMs": 95,
       "keys": [
         "items"
       ],
@@ -986,8 +986,8 @@
       "anonStatus": 401,
       "anonCode": "AUTHENTICATION_REQUIRED",
       "mode": "需登录",
-      "declared": "公开",
-      "mismatch": true
+      "declared": "需登录",
+      "mismatch": false
     },
     "/api/v1/users/{uid}/works": {
       "label": "用户作品列表",
