@@ -16,6 +16,8 @@ cookies.txt
 .wm_outage.json
 # 账本备份 (损坏时用于恢复, 同样是本机私有)
 .wm_ledger.json.bak
+# 跨进程写锁文件 (本机私有, 删了也不影响数据, 只是并发保护失效)
+.wm_write.lock
 
 # WorkBuddy 运行时数据 (自动化记忆/日志, 本机私有)
 .workbuddy/

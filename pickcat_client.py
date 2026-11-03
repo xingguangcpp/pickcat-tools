@@ -21,9 +21,11 @@ pickcat_client.py — Pickcat 社区(编程猫) 非官方 API 客户端 (Python 
 零依赖: 只用 urllib + http.cookiejar + uuid + json。
 """
 
+import contextlib
 import json
 import os
 import re
+import threading
 import time
 import uuid
 import urllib.parse
@@ -171,7 +173,6 @@ def service_is_down():
 
 def _atomic_write_json(path, obj):
     """原子写 JSON: 先写同目录临时文件, 再 os.replace 覆盖。
-
     os.replace 在同一文件系统上是原子的 —— 要么是完整的新内容, 要么还是
     旧的完整内容, 不会留半截 JSON。
 
@@ -186,6 +187,139 @@ def _atomic_write_json(path, obj):
     tmp = p.with_name(p.name + ".tmp")
     tmp.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
     os.replace(tmp, p)
+
+
+# ---------------------------------------------------------------------------
+# 跨进程写锁 (2026-11-03 20:xx 加)
+#
+# 问题: 硬上限的判定是"读计数 -> 比较 -> 发请求"三步, 这是典型的 check-then-act
+# 竞态。**两个进程并发时, 各自读到同一个旧计数, 都会通过护栏**, 于是实际发出
+# 的条数超过用户定的上限。
+#
+# 实测复现 (2026-11-03 20:xx): 预置当天 11 条回复 (上限 12), 起 4 个并发实例,
+# **4 条全部发出** —— 当天实际 15 条回复, 突破硬上限。
+#
+# 这不是理论风险: 本项目历史上出现过两次并发实例 (11-01 20:06 / 11-02 21:14),
+# 当时都是靠"下一轮先看账本 seq 尾号"事后发现, 而不是事前拦住。
+#
+# 修法: 把"读计数 -> 判定 -> 记账"整段放进一把**跨进程排他锁**里。
+#   - 进程内: threading.RLock (可重入 —— 锁的持有者再次进入同一临界区不死锁)
+#   - 进程间: 文件锁 (Windows 用 msvcrt.locking, POSIX 用 fcntl.flock),
+#     靠**独立的锁文件**实现, 锁的是"锁文件"而不是账本本身 ——
+#     这样锁的粒度和被保护的数据是分开的, 不会互相干扰。
+#   - 超时: 拿不到锁就**放弃这次写操作** (fail closed)。宁可少回一条,
+#     也不能因为等锁超时而"没锁也硬发" —— 那等于把护栏绕开。
+# ---------------------------------------------------------------------------
+
+_write_mutex = threading.RLock()      # 进程内互斥 (可重入)
+_write_lock_depth = 0                 # 当前进程持有锁的层数 (可重入计数)
+_write_lock_fh = None                 # 跨进程锁文件的句柄
+
+
+def _write_lock_path():
+    return state_file(".wm_write.lock")
+
+
+def _acquire_file_lock(timeout=60.0):
+    """跨进程排他锁 (阻塞式, 带超时)。返回句柄, 失败抛 OSError。"""
+    import platform
+
+    path = _write_lock_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+    if platform.system() == "Windows":
+        import msvcrt
+
+        fh = open(path, "a+b")
+        # msvcrt.locking 需要至少 1 字节可锁
+        fh.seek(0, os.SEEK_END)
+        if fh.tell() == 0:
+            fh.write(b"\0")
+            fh.flush()
+        deadline = time.time() + timeout
+        while True:
+            try:
+                fh.seek(0)
+                msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+                return fh
+            except OSError:
+                if time.time() >= deadline:
+                    fh.close()
+                    raise
+                time.sleep(0.05)
+    else:
+        import fcntl
+
+        fh = open(path, "a+b")
+        deadline = time.time() + timeout
+        while True:
+            try:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                return fh
+            except OSError:
+                if time.time() >= deadline:
+                    fh.close()
+                    raise
+                time.sleep(0.05)
+
+
+def _release_file_lock(fh):
+    try:
+        import platform
+
+        if platform.system() == "Windows":
+            import msvcrt
+
+            fh.seek(0)
+            msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+    except Exception:
+        pass
+    try:
+        fh.close()
+    except Exception:
+        pass
+
+
+@contextlib.contextmanager
+def write_lock(timeout=60.0):
+    """写操作的跨进程排他锁 (可重入)。
+
+    用法::
+
+        with write_lock():
+            count = read_count()
+            if count < limit:
+                do_write()
+
+    这样"读计数 -> 判定 -> 写"整体是原子的, 并发实例会排队, 后一个
+    拿到锁时能看到前一个刚写进去的记录, 于是被正确拦下。
+
+    **拿不到锁就抛异常** (调用方应跳过这次写操作, 不要硬发) ——
+    失效方向必须是"少发"而不是"多发"。
+    """
+    global _write_lock_depth, _write_lock_fh
+    # 进程内: RLock 可重入, 同一线程嵌套进入不死锁
+    _write_mutex.acquire()
+    try:
+        outermost = _write_lock_depth == 0
+        if outermost:
+            _write_lock_fh = _acquire_file_lock(timeout)
+        _write_lock_depth += 1
+        try:
+            yield
+        finally:
+            _write_lock_depth -= 1
+            if outermost and _write_lock_fh is not None:
+                fh, _write_lock_fh = _write_lock_fh, None
+                _release_file_lock(fh)
+    finally:
+        _write_mutex.release()
 
 
 def quota_save(record):
@@ -275,25 +409,37 @@ def ledger_append(record):
     当天计数直接归零 —— 且失效方向是"放行更多"。
 
     另外先写 .bak: 账本被写坏时还能从备份恢复历史, 而不是只剩一个空列表。
+
+    **本身是读-改-写, 必须加锁** (2026-11-03 20:xx 修):
+    旧实现是"读整个账本 -> append 一条 -> 整个写回"。两个进程同时追加时,
+    各自读到同样的旧内容, 后写的把先写的**整条记录抹掉** ——
+    账本少一条 = 当天计数少 1 = 硬上限的计数依据失真 (失效方向: 放行更多)。
+    所以这里单独加一把跨进程锁。write_lock 是可重入的, 外层已持锁时不会死锁。
+
+    **拿不到锁必须让调用方知道, 不能吞掉**:
+    吞掉的话 = 服务端写操作已经成功, 但账本没记上 -> 当天计数少算 1
+    -> 硬上限的计数依据失真 (失效方向又是"放行更多")。
+    所以锁在 try 外面拿: 拿不到就往上抛, 由调用方决定是否放弃这次写操作。
     """
-    try:
-        p, bak = _ledger_paths()
-        # **基于 ledger_read() 的结果追加, 不要自己再读一遍主文件**:
-        # 主文件缺失/损坏时, 自己读会拿到 [], 追加一条就把仅存的历史
-        # (备份里的 46 条) 覆盖掉 —— 那等于"下一次写操作抹掉全部历史"。
-        # ledger_read() 已经统一处理了主备择优。
-        data = list(ledger_read())
-        data.append(record)
-        _atomic_write_json(p, data)
-        # 备份写**新内容** (与主文件一致), 不是写之前的老内容。
-        # 差别很实在: 备份落后一条的话, 主文件损坏后退回备份就少算了一次写操作
-        # —— 当天计数少 1, 上限又松了一点。备份必须与主文件等价。
+    p, bak = _ledger_paths()
+    with write_lock():
         try:
-            _atomic_write_json(bak, data)
+            # **基于 ledger_read() 的结果追加, 不要自己再读一遍主文件**:
+            # 主文件缺失/损坏时, 自己读会拿到 [], 追加一条就把仅存的历史
+            # (备份里的 46 条) 覆盖掉 —— 那等于"下一次写操作抹掉全部历史"。
+            # ledger_read() 已经统一处理了主备择优。
+            data = list(ledger_read())
+            data.append(record)
+            _atomic_write_json(p, data)
+            # 备份写**新内容** (与主文件一致), 不是写之前的老内容。
+            # 差别很实在: 备份落后一条的话, 主文件损坏后退回备份就少算了一次写操作
+            # —— 当天计数少 1, 上限又松了一点。备份必须与主文件等价。
+            try:
+                _atomic_write_json(bak, data)
+            except Exception:
+                pass
         except Exception:
             pass
-    except Exception:
-        pass
 
 
 def ledger_unreadable():
@@ -505,26 +651,32 @@ def wm_next_seq():
     计数器损坏时不静默从 1 重新开始, 而是**从账本里已用的最大 seq 恢复**:
     账本记着每次写操作的 seq, 是"用到哪儿了"的权威依据。少了这一步,
     计数器一坏就等于把水印编号从头开始发, 老序号会被重复使用。
+
+    **读-改-写, 必须加锁** (2026-11-03 20:xx 修):
+    旧实现是"读计数器 -> +1 -> 写回"。两个进程同时取号会拿到**同一个 seq**,
+    水印编号重复 -> 水印审计分不清"这条是哪次调用发的", 序号缺口统计也失真。
+    而且重复的 seq 会让账本里出现两条同号记录, 审计对不上。
     """
-    n = 0
-    if state_file(".wm_counter.json").exists():
+    with write_lock():
+        n = 0
+        if state_file(".wm_counter.json").exists():
+            try:
+                n = int(json.loads(state_file(".wm_counter.json").read_text(encoding="utf-8")).get("seq", 0))
+            except Exception:
+                n = 0
+        if n <= 0:
+            # 计数器丢失或损坏 -> 用账本里的最大 seq 兜底
+            try:
+                for r in ledger_read():
+                    n = max(n, int(r.get("seq") or 0))
+            except Exception:
+                pass
+        n += 1
         try:
-            n = int(json.loads(state_file(".wm_counter.json").read_text(encoding="utf-8")).get("seq", 0))
-        except Exception:
-            n = 0
-    if n <= 0:
-        # 计数器丢失或损坏 -> 用账本里的最大 seq 兜底
-        try:
-            for r in ledger_read():
-                n = max(n, int(r.get("seq") or 0))
+            _atomic_write_json(state_file(".wm_counter.json"), {"seq": n})
         except Exception:
             pass
-    n += 1
-    try:
-        _atomic_write_json(state_file(".wm_counter.json"), {"seq": n})
-    except Exception:
-        pass
-    return n
+        return n
 
 
 def wm_peek_seq():

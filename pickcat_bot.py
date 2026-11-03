@@ -39,6 +39,7 @@ from pickcat_client import (  # noqa: E402
     PickcatError,
     outage_record,
     state_file,
+    write_lock,
 )
 
 ENV_FILE = HERE / ".env"
@@ -816,6 +817,16 @@ def cmd_check(c, args):
 
 # ---------------------------------------------------------------- reply
 def cmd_reply(c, args):
+    # **整段进跨进程排他锁** (2026-11-03 20:xx 修):
+    # 硬上限的判定是"读计数 -> 比较 -> 发请求", 不加锁就是 check-then-act 竞态 ——
+    # 并发实例各自读到同一个旧计数, 都会通过护栏, 于是实际发出条数超限。
+    # (实测: 预置 11 条 + 4 个并发实例 -> 4 条全发出, 突破 12 的上限。)
+    # 锁的粒度是"整个判定+写入", 后一个实例拿到锁时能看到前一个刚写进账本的记录。
+    with write_lock():
+        return _cmd_reply_locked(c, args)
+
+
+def _cmd_reply_locked(c, args):
     st = load_state()
     uid = client_uid(c)
     d = daily_guard(st, "replies")
@@ -883,7 +894,16 @@ def cmd_reply(c, args):
 
 # ---------------------------------------------------------------- comment
 def cmd_comment(c, args):
-    """在已有帖子下评一条顶层评论 (受每帖<=3 与每日上限约束)。"""
+    """在已有帖子下评一条顶层评论 (受每帖<=3 与每日上限约束)。
+
+    整段进跨进程排他锁 —— 理由同 cmd_reply: "读计数 -> 判定 -> 发"必须原子,
+    否则并发实例会各自通过护栏, 实际发出条数超限。
+    """
+    with write_lock():
+        return _cmd_comment_locked(c, args)
+
+
+def _cmd_comment_locked(c, args):
     st = load_state()
     uid = client_uid(c)
     d = daily_guard(st, "comments")
@@ -935,10 +955,13 @@ def cmd_refresh(c, args):
 
     if _fast_fail_if_down():
         return
-    ledger = ledger_read()
+    # 先按快照查出要复查的投稿 (网络调用在锁外, 不占着锁干等)。
+    snapshot = ledger_read()
     changed = []
     quota = None
-    for r in ledger:
+    # 收集**状态增量**, 而不是就地改快照 —— 见下面写回处的说明。
+    updates = {}
+    for r in snapshot:
         sid = r.get("submissionId")
         if not sid or r.get("status") not in ("PENDING_PROVIDER", "PENDING_PUBLICATION"):
             continue
@@ -950,14 +973,15 @@ def cmd_refresh(c, args):
         st = rec.get("status")
         if st != r.get("status"):
             changed.append((r.get("seq"), r.get("status"), st))
-        r["status"] = st
+        upd = {"status": st}
         if st == "PUBLICATION_FAILED":
-            r["reasonCode"] = rec.get("reasonCode")
+            upd["reasonCode"] = rec.get("reasonCode")
             q = quota_from_submission(rec)
             if q:
                 quota = q
                 quota_save(q)
-            r["reasonDetails"] = rec.get("reasonDetails")
+            upd["reasonDetails"] = rec.get("reasonDetails")
+        updates[sid] = upd
     # 回写账本 (原子写)。
     # ⚠ 这里的写回是"每轮都执行"的, 所以它同时是危险的: 万一读到的账本
     #   是空的 (主文件损坏 + 备份也坏了), 这行就把空列表写回去, 把历史
@@ -966,6 +990,13 @@ def cmd_refresh(c, args):
     # **主备两份都要看** (2026-11-03 16:xx 修): 只看主文件的话,
     #   "主文件丢失 + 备份也坏了" 时 prev_size=0, 闸门不触发,
     #   空列表会把仅存的备份现场一起抹掉。
+    #
+    # **写回必须"重读 + 只应用增量", 不能把旧快照整个写回去**
+    # (2026-11-03 20:xx 修): 复查要发网络请求, 这期间另一个实例可能
+    # 刚往账本里追加了新记录。若把开始时的旧快照整个写回去, 那条新记录
+    # 就被**抹掉**了 —— 账本少一条 = 当天计数少算 1 = 硬上限的计数依据失真
+    # (失效方向: 放行更多)。这跟"账本损坏被写空"是同一类事故。
+    # 所以这里在锁内**重新读一遍**账本, 只把上面查到的状态增量贴上去。
     from pickcat_client import _ledger_paths
 
     ledger_path, ledger_bak_path = _ledger_paths()
@@ -976,16 +1007,28 @@ def cmd_refresh(c, args):
         )
     except Exception:
         prev_size = 0
-    if prev_size > 2 and not ledger:
-        print(f"  ⚠ 账本读回为空但文件非空 ({prev_size} 字节) —— 拒绝写回, "
-              f"保留原文件现场 (可能是账本损坏)", file=sys.stderr)
-        print("  复查了 0 条账本记录 (账本读回异常, 已跳过写回)")
-        print("=" * 62)
-        return
     try:
         from pickcat_client import ledger_write_all
 
-        ledger_write_all(ledger)
+        with write_lock():
+            ledger = ledger_read()          # 重读: 拿到包含并发新记录的最新版
+            if prev_size > 2 and not ledger:
+                print(f"  ⚠ 账本读回为空但文件非空 ({prev_size} 字节) —— 拒绝写回, "
+                      f"保留原文件现场 (可能是账本损坏)", file=sys.stderr)
+                print("  复查了 0 条账本记录 (账本读回异常, 已跳过写回)")
+                print("=" * 62)
+                return
+            # 只贴状态增量, 不动其他字段 (并发追加的记录原样保留)。
+            for r in ledger:
+                upd = updates.get(r.get("submissionId"))
+                if not upd:
+                    continue
+                r["status"] = upd["status"]
+                if "reasonCode" in upd:
+                    r["reasonCode"] = upd["reasonCode"]
+                if "reasonDetails" in upd:
+                    r["reasonDetails"] = upd["reasonDetails"]
+            ledger_write_all(ledger)
     except Exception as e:
         print(f"账本写回失败: {e}", file=sys.stderr)
 
