@@ -493,12 +493,14 @@ def _fmt_field_delta(old, new, limit=8):
 def _is_struct_change(line):
     """判断一条变化描述是不是"结构类" (与快照记录粒度有关, 不是服务端行为变化)。
 
-    结构类: 响应结构变化 / 字段路径变化 / 列表项形态变化 / 列表项字段类型变化 /
-    列表项形态数。这些在"快照格式升级"那一轮必须静音 —— 否则会把"我们换了把更细的尺子"
+    结构类: 响应结构变化 / 字段路径变化 / 列表项形态变化 / 列表项字段类型变化。
+    这些在"快照格式升级"那一轮必须静音 —— 否则会把"我们换了把更细的尺子"
     报成"服务端改了 14 个字段"。
     """
+    if line.startswith("📐"):
+        return False   # 这条本身就是"格式升级"说明, 不是结构差异
     return ("响应结构变化" in line or "字段路径变化" in line
-            or "列表项形态" in line or "列表项字段类型变化" in line)
+            or "列表项形态变化" in line or "列表项字段类型变化" in line)
 
 
 def _universal_fields(shapes):
@@ -662,7 +664,7 @@ def diff_snapshots(old, new):
         changes = [c for c in changes if not _is_struct_change(c)]
         changes.append(
             f"📐 **快照格式升级** {ov or 'v1(无版本)'} → v{nv}: "
-            f"结构记录改为完整顶层键 + 字段路径 + 列表项签名 "
+            f"结构记录改为完整顶层键 + 字段路径 + 列表项形态集合 "
             f"(本轮不逐项报结构差异, 新基线从下一轮开始生效)")
 
     # 鉴权属性变化: 这是最重要的一类变化 —— 端点还在, 但"谁能看"变了。
