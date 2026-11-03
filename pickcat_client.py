@@ -1024,12 +1024,16 @@ class PickcatClient:
         return resp
 
     def create_reply(self, topic_id, markdown, reply_to_post_number=None,
-                     watermark=True, wm_position="end", channel=None):
+                     watermark=True, wm_position="end", channel=None, react=None):
         """POST /api/v1/posts 发布回帖 (可楼中楼)。默认追加隐形水印组 + 选中可见标记。
 
         channel: "comment" (顶层评论) / "reply" (楼中楼回复)。写进账本,
         让"今天发了几条顶层评论、几条楼中楼"可以精确统计 —— 每日上限是硬
         规矩, 计数不能靠猜。
+
+        react: True=回应"有人回我", False=我自选话题去答, None=未知。
+        写进账本, 让"主动式用了多少额度"也能从账本重建 (与 daily_guard
+        同源: 账本是权威, state 只是缓存)。
         """
         body = {"topicId": topic_id, "markdown": markdown}
         if reply_to_post_number is not None:
@@ -1058,20 +1062,25 @@ class PickcatClient:
             extra_headers={"Idempotency-Key": key},
         )
         if watermark and isinstance(resp, dict):
-            ledger_append(
-                {
-                    "seq": seq,
-                    "kind": "reply",
-                    "channel": channel or ("comment" if reply_to_post_number in (None, 1) else "reply"),
-                    "topicId": topic_id,
-                    "postId": resp.get("postId"),
-                    "submissionId": resp.get("submissionId"),
-                    "status": resp.get("status"),
-                    "replyTo": reply_to_post_number,
-                    "text": wm_strip(markdown)[:80],
-                    "at": time.strftime("%Y-%m-%d %H:%M:%S"),
-                }
-            )
+            eff_channel = channel or ("comment" if reply_to_post_number in (None, 1) else "reply")
+            rec = {
+                "seq": seq,
+                "kind": "reply",
+                "channel": eff_channel,
+                "topicId": topic_id,
+                "postId": resp.get("postId"),
+                "submissionId": resp.get("submissionId"),
+                "status": resp.get("status"),
+                "replyTo": reply_to_post_number,
+                "text": wm_strip(markdown)[:80],
+                "at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            }
+            # react 显式写出来 (True/False/None 三态), 这样重建"主动式用量"
+            # 时能区分"确实是主动式"和"判不准"。楼中楼回复必须写;
+            # 顶层评论不参与回复池的竞争, 不写这个字段。
+            if eff_channel == "reply":
+                rec["react"] = react
+            ledger_append(rec)
         return resp
 
     # ---------- 写后查询: 审核状态 ----------

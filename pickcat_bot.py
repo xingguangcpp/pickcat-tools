@@ -99,6 +99,27 @@ def _num(key, default, cast=int):
 # 卡太死会让人干等着, 所以给得宽 —— 平台真正的限制在发帖额度上, 见 README"配额"一节。
 MAX_COMMENTS_PER_DAY = _num("PICKCAT_BOT_MAX_COMMENTS_PER_DAY", 3)
 MAX_REPLIES_PER_DAY = _num("PICKCAT_BOT_MAX_REPLIES_PER_DAY", 12)
+# --- 给"有人回我"留的名额 (2026-11-03 22:xx 加) ---
+# 背景: 每天 12 条回复额度是**一个池子**, 反应式(有人回我) 和主动式(我自选话题)
+# 抢同一个池子。实测 11-03: 额度在 08:48 就被花光 (其中主动式 8 条), 而当天
+# 真正的"有人回我"是 11:42/13:34/17:42/21:13/21:52 才陆续到 —— 于是一个人没回上,
+# 之后连续 8 轮全是零输出 (额度 12/12 已满)。
+#
+# 根因不是"额度不够", 是**额度用在了错的时间**: 真·回我的需求是**双峰**的
+# (实测 10-12 点 15 条、20-21 点 12 条, 而 00-09 点只有 7 条), 主动式内容
+# 却在需求低谷的凌晨被发掉了。
+#
+# 修法: 把"主动式"(我自选话题去答) 单独限量, 剩下的名额**预留给反应式**。
+# 反应式(有人回我) 不受这个限制 —— 它直接吃总池子的 12 条。
+# 注意用户定的硬上限 (每日回复 <= 12) 一条没动: 总量仍然 <= 12, 只是把
+# 12 条里的 9 条**优先**给真正回我的人。
+#
+# 为什么是 9 而不是 8: 反应式需求实测是**双峰**的 (11-01 有 19 次要答,
+# 11-02 只有 6 次), 拿 9 条预留能覆盖常态; 主动式留 3 条也和"评新帖"那个
+# 3 条/天的评论额度对称 (两条都是"我自己挑的"非必需产出)。
+REACTIVE_RESERVE = _num("PICKCAT_BOT_REACTIVE_RESERVE", 9)
+# 主动式(自选话题) 最多能用掉多少条 = 总池子 - 给反应式预留的
+MAX_PROACTIVE_REPLIES_PER_DAY = max(0, MAX_REPLIES_PER_DAY - REACTIVE_RESERVE)
 # 两次写操作最小间隔(秒)
 WRITE_INTERVAL = _num("PICKCAT_BOT_WRITE_INTERVAL", 8.0, float)
 # "回我"的历史楼层最多回溯多少天 (再早的回信不该翻出来回)
@@ -457,6 +478,124 @@ def ledger_daily_counts(day):
     return c, r
 
 
+def ledger_daily_kind_counts(day):
+    """今天楼中楼回复按 (反应式, 主动式, 判不准) 三类统计。
+
+    只数**楼中楼**回复 —— 顶层评论走的是评论额度 (3/天), 不参与回复池的竞争。
+
+    **缺 react 字段的老记录算"判不准"**, 而护栏把"判不准"**保守算主动式**
+    (见 ledger_daily_proactive_count): 主动式额度算紧一点, 只是少发几条
+    主动内容; 反过来把主动式算成反应式, 就会去挤占给反应式预留的名额 ——
+    那正是本轮要修的病根 (11-03: 8 条主动式把额度花光, 5 个真正回我的人
+    没回上)。总上限 (12/天) 由 daily_guard 独立兜底, 不受这里的口径影响。
+    """
+    from pickcat_client import ledger_read
+
+    reactive = proactive = unknown = 0
+    for rec in ledger_read():
+        try:
+            if not isinstance(rec, dict):
+                continue
+            if rec.get("kind") != "reply":
+                continue
+            if str(rec.get("at") or "")[:10] != day:
+                continue
+            ch = rec.get("channel")
+            if ch not in ("comment", "reply"):
+                rt = rec.get("replyTo")
+                if rt is None:
+                    ch = "comment"
+                else:
+                    try:
+                        k = int(rt)
+                    except (TypeError, ValueError):
+                        k = 1
+                    ch = "comment" if k == 1 else "reply"
+            if ch != "reply":
+                continue  # 顶层评论占评论额度, 不算
+            r = rec.get("react")
+            if r is True:
+                reactive += 1
+            elif r is False:
+                proactive += 1
+            else:
+                unknown += 1
+        except Exception:
+            continue
+    return reactive, proactive, unknown
+
+
+def ledger_daily_proactive_count(day):
+    """今天已用的"主动式"楼中楼回复数 (与反应式抢同一池子的那部分)。
+
+    护栏口径: **主动式 + 判不准** 都算占用主动额度 (保守方向, 见上)。
+    """
+    _r, proactive, unknown = ledger_daily_kind_counts(day)
+    return proactive + unknown
+
+
+def _reply_is_reactive(c, topic_id, reply_to, uid, notify_id=None):
+    """这条楼中楼回复是不是在回应"有人回我"。
+
+    返回 True(反应式) / False(主动式) / None(判不准)。
+
+    判据与 check 的 isReplyToMe **完全一致**: 目标楼层的**父楼层作者是我**
+    (rtp 指向首楼时, 首楼作者 = 楼主)。用同一套口径是为了让"记账口径"和
+    "需求口径"永远对得上 —— 否则会出现"按 notify 排的需求 vs 按别的口径
+    记的账"这种对不上的情况。
+
+    两种信号都算"反应式":
+      (a) 带了 --notify —— 那就是 notify 权威列表里的条目 (含 @ 我的提及);
+      (b) 父楼层作者是我 (服务端事实, 不依赖调用方是否传 --notify)。
+
+    **判不准时返回 None, 调用方按反应式放行** (宁可少发主动内容, 也不让
+    真正回我的人干等)。但账本里会记 react=None, 重建"主动式用量"时
+    **保守算主动式** —— 两个方向的保守点不一样:
+      - 放行时保守 = 允许发 (别把真·回我的人挡在门外)
+      - 记账时保守 = 占用主动额度 (主动内容是可选的, 少发几条无妨)
+    """
+    if notify_id:
+        return True
+    try:
+        items = posts_of(c, topic_id)
+    except Exception:
+        return None
+    if not items:
+        return None
+    # 楼层号 -> (作者 id, 父楼层号)
+    by_pn = {}
+    for it in items:
+        try:
+            pn = int(it.get("postNumber") or 0)
+        except (TypeError, ValueError):
+            continue
+        by_pn[pn] = ((it.get("author") or {}).get("id"), it.get("replyToPostNumber"))
+    # 首楼(#1) 不在 posts 列表里, 用楼主补 —— 与 cmd_check 的 author_by_pn 同源
+    try:
+        meta = c.get_topic(topic_id)
+        by_pn.setdefault(1, ((meta.get("author") or {}).get("id"), None))
+    except Exception:
+        pass
+    try:
+        target = by_pn.get(int(reply_to))
+    except (TypeError, ValueError):
+        return None
+    if target is None:
+        return None
+    rtp = target[1]
+    if rtp is None:
+        return None
+    try:
+        parent = by_pn.get(int(rtp))
+    except (TypeError, ValueError):
+        return None
+    if parent is None:
+        return None
+    if parent[0] is None:
+        return None
+    return parent[0] == uid
+
+
 # ---------------------------------------------------------------- check
 def _fast_fail_if_down():
     """服务不可用时快速失败: 别再一个个请求去撞墙(每个都要等 10s 超时)。"""
@@ -783,8 +922,16 @@ def cmd_check(c, args):
     # 昨天的数字(比如 10/12)原样显示出来, 让后续轮次误以为额度快满了。
     _d = daily_guard(st, "replies")
     save_state(st)  # 把跨天清零的结果落盘, 否则下次读到的还是昨天的计数
+    # 主动式(我自选话题)与反应式(有人回我)分开显示 —— 主动式有单独上限,
+    # 剩下的额度预留给真正回我的人 (2026-11-03 22:xx 加)。
+    _react_n, _pro_n, _unk_n = ledger_daily_kind_counts(today_key())
+    _pro_used = _pro_n + _unk_n
     print(f"[每日额度] 评论 {_d.get('comments', 0)}/{MAX_COMMENTS_PER_DAY}, "
           f"回复 {_d.get('replies', 0)}/{MAX_REPLIES_PER_DAY} "
+          f"(其中主动式 {_pro_used}/{MAX_PROACTIVE_REPLIES_PER_DAY}"
+          + (f", 含判不准 {_unk_n} 条" if _unk_n else "")
+          + f", 预留给'有人回我' {_d.get('replies', 0) - _pro_used}/"
+          f"{MAX_REPLIES_PER_DAY - MAX_PROACTIVE_REPLIES_PER_DAY}) "
           f"({_d.get('date', '-')}, 按自然日清零)")
     if _d.get("daily_unknown"):
         print("[⚠ 额度未知] 账本读不出内容且 state 也没有今天的计数 —— "
@@ -863,12 +1010,36 @@ def _cmd_reply_locked(c, args):
         if d["replies"] >= MAX_REPLIES_PER_DAY:
             print(f"[护栏] 今日回复已达上限 {MAX_REPLIES_PER_DAY}, 跳过。", file=sys.stderr)
             sys.exit(3)
+        # 护栏 3b: **主动式 (我自选话题去答) 单独限量**, 把额度预留给
+        # "有人回我"的人。
+        #
+        # 为什么要有这条 (2026-11-03 22:xx 修): 反应式和主动式抢同一个池子,
+        # 而需求是**双峰**的 —— 实测"有人回我"的通知集中在 10-12 点和 20-21 点,
+        # 凌晨 00-09 点几乎没有。11-03 我在 00:53-08:48 把 12 条额度里的
+        # 8 条花在主动式内容上, 结果 11:42 之后陆续来的 5 个真·回我的人
+        # 一条都没回上 (之后连续 8 轮零输出)。额度不是不够, 是用在了错的时间、
+        # 错的对象上。
+        #
+        # 判定用**客观口径** (目标楼层的父楼层作者是我), 与 check 的 isReplyToMe
+        # 同一套判据 —— 记账口径和需求口径必须对得上。
+        # 判不准时(None)按反应式放行: 宁可少发主动内容, 也不让人干等。
+        reactive = _reply_is_reactive(
+            c, args.topic_id, args.reply_to, uid, getattr(args, "notify", None)
+        )
+        if reactive is False:
+            pro = ledger_daily_proactive_count(today_key())
+            if pro >= MAX_PROACTIVE_REPLIES_PER_DAY:
+                print(f"[护栏] 今日主动回复 (我自选话题) 已达上限 "
+                      f"{MAX_PROACTIVE_REPLIES_PER_DAY}, 跳过 —— 剩下的额度"
+                      f"预留给'有人回我'的人。", file=sys.stderr)
+                sys.exit(3)
 
     # reply_to=0 不是合法楼层号, 按顶层评论处理 (与 cmd_comment 走同一条路径)
     reply_to = 1 if is_top else args.reply_to
     resp = c.create_reply(
         args.topic_id, args.body, reply_to_post_number=reply_to,
         channel="comment" if is_top else "reply",
+        react=(True if is_top else (None if reactive is None else reactive)),
     )
     if is_top:
         d["comments"] += 1
