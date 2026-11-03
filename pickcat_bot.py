@@ -543,7 +543,11 @@ def cmd_check(c, args):
             pending.append(
                 {
                     "topicId": tid,
-                    "title": info.get("title", ""),
+                    # 标题兜底: watched 里的 title 是当初 watch 时记的, 可能为空
+                    # (比如是我自己发的帖, 或 notify 顺手加进关注的)。
+                    # 标题为空时用服务端元信息补上 —— 否则输出里"帖子:"后面是空的,
+                    # 根本无法判断是哪条待回复, 只能靠 topicId 反查。
+                    "title": info.get("title") or meta.get("title") or "",
                     "postNumber": pn,
                     "replyToPostNumber": rtp,
                     "parentAuthor": parent_id,
@@ -676,24 +680,42 @@ def cmd_reply(c, args):
     uid = client_uid(c)
     d = daily_guard(st, "replies")
 
+    # **顶层评论必须走"评论"预算, 不能走"回复"预算。**
+    # 顶层评论 = replyToPostNumber 指向首楼(1)或为空, 和 cmd_comment 发出去的
+    # 是同一种东西 (服务端帖子结构完全一样)。早期版本这里一律按 reply 计,
+    # 于是 `reply --reply-to 1` 成了绕过"每日评论上限 3"的后门:
+    # 一天的顶层评论能发到 12 条 (回复预算) 而不是 3 条。
+    # 账本 channel 也要跟着记 comment, 否则重建计数时口径又对不上了。
+    is_top = args.reply_to in (0, 1, None)
+
     # 护栏 1: 顶层评论每帖 <= 3
-    if args.reply_to in (0, 1, None):
+    if is_top:
         cnt = my_top_level_count(c, args.topic_id, uid)
         if cnt >= MAX_TOP_LEVEL:
             print(f"[护栏] 该帖我的顶层评论已 {cnt} 条 (上限 {MAX_TOP_LEVEL}), "
                   f"拒绝再发顶层评论。楼中楼回复不受限。", file=sys.stderr)
             sys.exit(3)
+        # 护栏 2: 每日**评论**上限 (顶层评论占的是评论额度)
+        if d["comments"] >= MAX_COMMENTS_PER_DAY:
+            print(f"[护栏] 今日评论已达上限 {MAX_COMMENTS_PER_DAY}, 跳过。",
+                  file=sys.stderr)
+            sys.exit(3)
+    # 护栏 3: 每日回复上限 (楼中楼回复才占回复额度)
+    else:
+        if d["replies"] >= MAX_REPLIES_PER_DAY:
+            print(f"[护栏] 今日回复已达上限 {MAX_REPLIES_PER_DAY}, 跳过。", file=sys.stderr)
+            sys.exit(3)
 
-    # 护栏 2: 每日回复上限
-    if d["replies"] >= MAX_REPLIES_PER_DAY:
-        print(f"[护栏] 今日回复已达上限 {MAX_REPLIES_PER_DAY}, 跳过。", file=sys.stderr)
-        sys.exit(3)
-
+    # reply_to=0 不是合法楼层号, 按顶层评论处理 (与 cmd_comment 走同一条路径)
+    reply_to = 1 if is_top else args.reply_to
     resp = c.create_reply(
-        args.topic_id, args.body, reply_to_post_number=args.reply_to,
-        channel="reply",
+        args.topic_id, args.body, reply_to_post_number=reply_to,
+        channel="comment" if is_top else "reply",
     )
-    d["replies"] += 1
+    if is_top:
+        d["comments"] += 1
+    else:
+        d["replies"] += 1
     # 顺手关注这个帖 (以后有人回我继续跟)
     w = st.setdefault("watched", {})
     if args.topic_id not in w:
