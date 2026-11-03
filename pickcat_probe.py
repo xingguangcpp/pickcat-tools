@@ -37,13 +37,33 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from pickcat_client import (  # noqa: E402
     DEFAULT_BASE, PickcatClient, PickcatError, is_service_down, service_is_down,
-    state_file,
+    state_file, _atomic_write_json,
 )
 from pickcat_bot import build_client, load_env  # noqa: E402
 
 SNAPSHOT_PATH = HERE / "docs" / "api-snapshot.json"
 STATUS_MD = HERE / "docs" / "API-STATUS.md"
 CHANGELOG_MD = HERE / "docs" / "API-CHANGELOG.md"
+
+# 快照格式版本。结构记录粒度变了就 +1 —— 用来让 diff 知道
+# "旧基线里的结构记录不完整, 不能拿来和新的比", 免得把
+# "我们把记录做细了" 误报成 "服务端改结构了"。
+#
+# v1: 只有顶层键, 且写死截断 12 个
+# v2: 完整顶层键 + 字段路径 + 列表项字段签名(交集, 类型混在里面)
+# v3: 完整顶层键 + 字段路径 + 列表项**形态集合**(只看键名) + 独立类型表
+#     v2 的签名取交集, 依赖内容 -> feed 换内容就误报;
+#     v3 改成与内容无关的形态集合, 类型单独用表记 (null 当"不知道")。
+SCHEMA_VERSION = 3
+
+# 顶层键最多记多少个。之前写死 12, 结果 GET /api/v1/topics/{tid} 有 26 个顶层字段,
+# 只记了 12 个 —— 另外 14 个字段改了服务端我们完全看不见。
+# 现在放宽到 40 (实测最大 26), 超了才截断并标 keysFull=False。
+SCHEMA_MAX_KEYS = 40
+
+# 递归收集字段路径时的最大嵌套深度。
+# 深度 1 = 只看顶层; 深度 2 = 再进一层对象 (author/stats/firstPost 这层)。
+SCHEMA_DEPTH = 2
 
 # "已发布基线" (gitignored): 记录**最后一次成功推送**时的快照。
 # 为什么不能直接拿本地 docs/api-snapshot.json 当对比基线?
@@ -276,6 +296,95 @@ def build_context(c):
     return ctx
 
 
+def _type_name(v):
+    """给一个值取个稳定的类型名 (用于结构指纹)。"""
+    if v is None:
+        return "null"
+    if isinstance(v, bool):
+        return "bool"
+    if isinstance(v, int):
+        return "int"
+    if isinstance(v, float):
+        return "float"
+    if isinstance(v, str):
+        return "str"
+    if isinstance(v, list):
+        return "array"
+    if isinstance(v, dict):
+        return "object"
+    return type(v).__name__
+
+
+def field_paths(obj, depth=SCHEMA_DEPTH):
+    """收集一个对象里的所有字段路径, 形如 "author.username" / "stats.likes:int"。
+
+    为什么记录**路径 + 类型**而不只是顶层键名:
+      - 只记顶层键名的话, 服务端把 topics/{tid} 里的 firstPost.cookedHtml 改名,
+        巡检完全看不见 —— 而那正是会打断业务的改动。
+      - 带上类型能额外发现 "字段还在但类型变了" (比如 id 从 str 变成 int),
+        这种改动同样会让调用方炸掉。
+
+    深度受限 (默认 2 层): 再深就进到正文/配置这种大对象里, 噪声大于价值。
+    数组不递归 (只记 "[]"), 因为数组元素结构各端点差异大, 且长度会变。
+    """
+    out = set()
+
+    def walk(o, prefix, level):
+        if not isinstance(o, dict):
+            return
+        for k in sorted(o.keys()):
+            v = o[k]
+            p = f"{prefix}.{k}" if prefix else k
+            out.add(f"{p}:{_type_name(v)}")
+            if isinstance(v, dict) and level < depth:
+                walk(v, p, level + 1)
+
+    walk(obj, "", 1)
+    return sorted(out)
+
+
+def item_schema(items):
+    """从列表项里归纳出"数据形态"。
+
+    这里踩过一个坑, 值得写清楚:
+      最初想用"所有项都有的字段交集"当共同签名。但**交集/并集都是内容依赖的** ——
+      feed 里换了批帖子, 交集就变, 于是每轮都误报"字段变化"。而且类型信息
+      (":null" vs ":str") 一混进来, 内容一变签名就跟着变。
+    真正的"结构"是**形态集合**: 把每个项的字段路径(只看名字, 不看类型)归一化去重,
+    得到"服务端一共返回过哪几种形状"。这个集合:
+      - 与内容无关: feed 换内容但形状没变 -> 集合不变 -> 不报。
+      - 服务端给所有项加字段 -> 每个形状都多一个 -> 集合变 -> 报。
+      - 服务端引入新形态 (如新的通知类型) -> 集合多一个 -> 报。
+      - 服务端删字段 -> 形状少一个 -> 报。
+    类型单独用 itemTypes 记 (path -> 类型), 比较时 null 当"不知道"处理,
+    这样 int 改 str 能抓到, 而 null 变 str (只是内容变了) 不会误报。
+    """
+    dicts = [i for i in items if isinstance(i, dict)]
+    if not dicts:
+        return None, 0, {}
+
+    # 每个项算一份"只看字段名"的形状
+    shapes = set()
+    for d in dicts:
+        paths = sorted({_split_field(f)[0] for f in field_paths(d)})
+        shapes.add(tuple(paths))
+
+    # 类型: 逐字段收集所有项里出现过的类型; 只有一种才算确定值,
+    # 有多种 (比如 null 和 str 并存) 就记 null = 未知, 比较时不当证据。
+    types = {}
+    per_path = {}
+    for d in dicts:
+        for f in field_paths(d):
+            p, t = _split_field(f)
+            per_path.setdefault(p, set()).add(t)
+    for p, ts in per_path.items():
+        # 只有一种类型才算确定值; 有多种 (比如 null 和 str 并存) 就记 null = 未知,
+        # 比较时不当"类型变化"的证据 (null 只说明这次没值)。
+        types[p] = next(iter(ts)) if len(ts) == 1 else "null"
+
+    return sorted(sorted(s) for s in shapes), len(shapes), types
+
+
 def run_probe(c, label, path, public):
     """跑一个探测, 返回结构化结果 (不抛异常)。"""
     t0 = time.time()
@@ -285,17 +394,36 @@ def run_probe(c, label, path, public):
         rec["status"] = 200
         rec["latencyMs"] = int((time.time() - t0) * 1000)
         if isinstance(d, dict):
-            rec["keys"] = sorted(d.keys())[:12]
+            keys = sorted(d.keys())
+            rec["keys"] = keys[:SCHEMA_MAX_KEYS]
+            # 记清楚"顶层键记全了没有" —— 否则和旧基线(写死截断 12 个)没法比。
+            rec["keysFull"] = len(keys) <= SCHEMA_MAX_KEYS
             items = d.get("items")
             rec["itemCount"] = len(items) if isinstance(items, list) else None
             pi = d.get("pageInfo")
             if isinstance(pi, dict):
                 rec["hasNextPage"] = bool(pi.get("hasNextPage"))
+            # 结构指纹: 顶层键名不够, 再记一层字段路径。
+            rec["fields"] = field_paths(d)
+            if isinstance(items, list) and items:
+                shapes, variants, types = item_schema(items)
+                rec["itemShapes"] = shapes
+                rec["itemVariants"] = variants
+                rec["itemTypes"] = types
         elif isinstance(d, list):
             rec["keys"] = ["<list>"]
+            rec["keysFull"] = True
             rec["itemCount"] = len(d)
+            rec["fields"] = []
+            shapes, variants, types = item_schema(d)
+            if shapes:
+                rec["itemShapes"] = shapes
+                rec["itemVariants"] = variants
+                rec["itemTypes"] = types
         else:
             rec["keys"] = [type(d).__name__]
+            rec["keysFull"] = True
+            rec["fields"] = []
     except PickcatError as e:
         rec["status"] = e.status
         rec["latencyMs"] = int((time.time() - t0) * 1000)
@@ -311,8 +439,145 @@ def run_probe(c, label, path, public):
     return rec
 
 
+def _split_field(f):
+    """把 "author.name:str" 拆成 ("author.name", "str")。"""
+    if ":" in f:
+        path, ty = f.rsplit(":", 1)
+        return path, ty
+    return f, None
+
+
+def _fmt_field_delta(old, new, limit=8):
+    """把两份字段指纹的差异说成人话: 加了什么 / 丢了什么 / 类型变了。
+
+    **null 必须当成"不知道"**, 这是本函数最容易踩的坑:
+      实测有大量字段平时就是 null (closedAt / editedAt / pinnedUntil /
+      replyToPostNumber / bookmarkId ...)。内容一变 (主题被关、被编辑、被置顶),
+      这些字段就从 null 变成具体值 —— 那是**内容变化**, 不是服务端改了结构。
+      如果直接比类型, 每轮都可能误报"字段路径变化", 巡检就成了狼来了。
+    所以规则:
+      - 字段名新增/消失 -> 真结构变化, 必报。
+      - 类型变化 -> 只有**两边都不是 null** 才报 (null 只说明"这次没值",
+        不能推出类型变了)。这仍然能抓住 int 改 str 这种真改动。
+    """
+    o = {}
+    for f in old or []:
+        p, t = _split_field(f)
+        o[p] = t
+    n = {}
+    for f in new or []:
+        p, t = _split_field(f)
+        n[p] = t
+    added = sorted(set(n) - set(o))
+    removed = sorted(set(o) - set(n))
+    retyped = []
+    for p in sorted(set(o) & set(n)):
+        ot, nt = o[p], n[p]
+        if ot == nt:
+            continue
+        if ot == "null" or nt == "null":
+            # 一边是 null -> 只说明这次没值, 不构成类型变化的证据
+            continue
+        retyped.append(f"{p}: {ot}→{nt}")
+    parts = []
+    if added:
+        parts.append("新增 " + ", ".join(f"`{a}`" for a in added[:limit])
+                     + (f" 等 {len(added)} 个" if len(added) > limit else ""))
+    if removed:
+        parts.append("消失 " + ", ".join(f"`{a}`" for a in removed[:limit])
+                     + (f" 等 {len(removed)} 个" if len(removed) > limit else ""))
+    if retyped:
+        parts.append("类型变化 " + ", ".join(f"`{a}`" for a in retyped[:limit])
+                     + (f" 等 {len(retyped)} 个" if len(retyped) > limit else ""))
+    return "; ".join(parts)
+def _is_struct_change(line):
+    """判断一条变化描述是不是"结构类" (与快照记录粒度有关, 不是服务端行为变化)。
+
+    结构类: 响应结构变化 / 字段路径变化 / 列表项形态变化 / 列表项字段类型变化 /
+    列表项形态数。这些在"快照格式升级"那一轮必须静音 —— 否则会把"我们换了把更细的尺子"
+    报成"服务端改了 14 个字段"。
+    """
+    return ("响应结构变化" in line or "字段路径变化" in line
+            or "列表项形态" in line or "列表项字段类型变化" in line)
+
+
+def _universal_fields(shapes):
+    """所有形态**都**有的字段名集合 (交集)。"""
+    sets = [set(s) for s in (shapes or [])]
+    if not sets:
+        return set()
+    return set.intersection(*sets)
+
+
+def _fmt_shape_delta(old, new, limit=8):
+    """把两份"形态集合"的差异说成人话。
+
+    形态 = 一个项的字段名集合 (只看名字, 不看类型)。
+
+    **只比"所有形态都有的字段"** (交集), 这是防假警报的关键:
+      实测踩过的坑: `topics?limit=5&sort=latest` 是**滑动窗口** (按最新排序),
+      窗口里本来有一个 QUESTION 类主题 (它比普通主题多 `questionState.*` 字段)。
+      那个主题被新主题顶出窗口后, 集合里少了这一种形态 —— 但服务端**一点没变**,
+      变的只是"这轮恰好装进了哪几个主题"。
+      如果按形态集合直接对比, 就会误报"服务端删了 questionState" —— 狼来了。
+      改成只看交集后: 窗口内容怎么变都不影响结论, 只有**所有形态都变了**才报。
+
+    代价: "某一类形态特有"的字段 (比如 QUESTION 独有的 questionState) 不会被自动告警。
+    但那些字段仍完整记在快照和 API-STATUS.md 里 (随时能查), 只是不拿去报警 ——
+    宁可漏报, 不要天天误报。
+    """
+    o_u = _universal_fields(old)
+    n_u = _universal_fields(new)
+    if not o_u and not n_u:
+        return ""
+    added = sorted(n_u - o_u)
+    removed = sorted(o_u - n_u)
+    parts = []
+    if added:
+        parts.append("新增 " + ", ".join(f"`{a}`" for a in added[:limit])
+                     + (f" 等 {len(added)} 个" if len(added) > limit else ""))
+    if removed:
+        parts.append("消失 " + ", ".join(f"`{a}`" for a in removed[:limit])
+                     + (f" 等 {len(removed)} 个" if len(removed) > limit else ""))
+    return "; ".join(parts)
+
+
+def _fmt_type_delta(old, new, limit=6, only=None):
+    """字段类型变化。null = "不知道", 所以 null↔具体值不报, int→str 才报。
+
+    only: 只比这些字段 (通常是"所有形态都有的"那批)。
+      为什么也要限定: 类型是按**所有项**汇总的, 某个只属于一种形态的字段
+      (如 QUESTION 独有的 questionState) 在窗口内容一变就可能从"没出现"变成
+      "出现" -> 类型表跳动 -> 误报。限定在通用字段上就跟形态差分保持一致了。
+    """
+    o = old or {}
+    n = new or {}
+    changed = []
+    for p in sorted(set(o) | set(n)):
+        if only is not None and p not in only:
+            continue
+        ot, nt = o.get(p), n.get(p)
+        if ot == nt:
+            continue
+        if ot in (None, "null") or nt in (None, "null"):
+            continue
+        changed.append(f"{p}: {ot}→{nt}")
+    if not changed:
+        return ""
+    return "; ".join(changed[:limit]) + (f" 等 {len(changed)} 个" if len(changed) > limit else "")
+
+
 def diff_snapshots(old, new):
-    """对比两份快照, 返回变化列表。"""
+    """对比两份快照, 返回变化列表。
+
+    结构比对的两个前提 (缺一个就会出假警报):
+      1. **同格式可比**: 旧基线的结构记录可能是"写死截断 12 个顶层键"的粗粒度,
+         新记录是完整的 —— 拿粗粒度去比细粒度, 会把"我们把记录做细了"
+         误报成"服务端改了 14 个字段"。所以只有两边都记全了才直接比,
+         否则只比公共前缀。
+      2. **字段路径可比**: 只有两边都记了字段路径 (fields) 才比字段路径。
+         旧基线压根没记, 那就跳过, 留到下一轮基线才有得比。
+    """
     changes = []
     op = old.get("probes") or {}
     np_ = new.get("probes") or {}
@@ -327,9 +592,49 @@ def diff_snapshots(old, new):
                 f" ({rec.get('code') or ''})")
         if prev.get("code") != rec.get("code") and rec.get("code"):
             changes.append(f"`{key}` 错误码 {prev.get('code')} → **{rec.get('code')}**")
-        if prev.get("keys") != rec.get("keys"):
-            changes.append(
-                f"`{key}` 响应结构变化: {prev.get('keys')} → **{rec.get('keys')}**")
+        # 顶层键: 只有两边都是"记全了"的才直接比。
+        # 一边截断一边完整 -> 只比公共前缀, 不报"服务端变了"。
+        pk, nk = prev.get("keys"), rec.get("keys")
+        if pk is not None and nk is not None:
+            if prev.get("keysFull") and rec.get("keysFull"):
+                if pk != nk:
+                    changes.append(
+                        f"`{key}` 响应结构变化: {pk} → **{nk}**")
+            else:
+                m = min(len(pk), len(nk))
+                if pk[:m] != nk[:m]:
+                    changes.append(
+                        f"`{key}` 响应结构变化: {pk[:m]} → **{nk[:m]}**")
+        # 字段路径 (第二层): 只有两边都记了才比。
+        # 注意: 顶层响应里的**嵌套对象**也可能只属于某一类内容
+        # (比如主题详情里的 firstPost 只有帖子才有, 某些端点可能压根没有)。
+        # 所以比的时候只看"两边都稳定存在"的字段, 否则窗口内容一变就误报。
+        pf, nf = prev.get("fields"), rec.get("fields")
+        if pf is not None and nf is not None and pf != nf:
+            delta = _fmt_field_delta(pf, nf)
+            if delta:
+                changes.append(f"`{key}` 字段路径变化: {delta}")
+        # 列表项**形态**: 只比"所有形态都有的字段"(交集), 与内容无关。
+        # 实测踩过的坑: sort=latest 是滑动窗口, 窗口里一个 QUESTION 主题被
+        # 新主题顶出去 -> 形态集合变了, 但服务端没变 -> 按集合比会误报。
+        ps, ns = prev.get("itemShapes"), rec.get("itemShapes")
+        if ps is not None and ns is not None and ps != ns:
+            delta = _fmt_shape_delta(ps, ns)
+            if delta:
+                changes.append(f"`{key}` 列表项形态变化: {delta}")
+        # 列表项字段类型: null 当"不知道", 所以 null↔具体值不报, int→str 才报。
+        # 只比通用字段 (与形态差分口径一致), 免得单一形态的字段类型跳动误报。
+        pt, nt = prev.get("itemTypes"), rec.get("itemTypes")
+        if pt is not None and nt is not None and pt != nt:
+            only = None
+            if ps is not None and ns is not None:
+                only = _universal_fields(ps) & _universal_fields(ns)
+            delta = _fmt_type_delta(pt, nt, only=only)
+            if delta:
+                changes.append(f"`{key}` 列表项字段类型变化: {delta}")
+        # 注: 形态**个数**的变化不再单独报一条 —— 它与上面的形态集合差分是
+        # 同一件事 (集合变了个数必然变), 单独报会变成重复噪音。
+        # itemVariants 仍然记在快照里, 供人看表格时参考。
         if prev.get("itemCount") is not None and rec.get("itemCount") is not None \
                 and prev.get("itemCount") != rec.get("itemCount"):
             changes.append(
@@ -343,6 +648,22 @@ def diff_snapshots(old, new):
     for key, rec in op.items():
         if key not in np_:
             changes.append(f"**消失** `{key}` (原 HTTP {rec.get('status')})")
+
+    # --- 快照格式升级: 这不是"服务端变了", 而是我们把尺子换精细了 ---
+    # 旧基线是粗粒度 (顶层键截断 12 个, 且没记字段路径)。拿它跟新基线逐项比
+    # 会把"我们记录得更细了"误报成"服务端改了 N 个字段" —— 那是假警报,
+    # 而且会让 CHANGELOG 被自己的工具改动淹没。
+    # 所以: 格式版本不一致时, 明确记一条"基线升级", 并且**跳过结构类比对**
+    # (状态/错误码/新增/消失/鉴权这些照常比, 那些与记录粒度无关)。
+    ov = old.get("schemaVersion")
+    nv = new.get("schemaVersion")
+    fmt_changed = (ov != nv)
+    if fmt_changed:
+        changes = [c for c in changes if not _is_struct_change(c)]
+        changes.append(
+            f"📐 **快照格式升级** {ov or 'v1(无版本)'} → v{nv}: "
+            f"结构记录改为完整顶层键 + 字段路径 + 列表项签名 "
+            f"(本轮不逐项报结构差异, 新基线从下一轮开始生效)")
 
     # 鉴权属性变化: 这是最重要的一类变化 —— 端点还在, 但"谁能看"变了。
     oa = old.get("auth") or {}
@@ -405,8 +726,7 @@ def load_baseline():
 def save_published_baseline(snap):
     """推送成功后调用: 把当前快照记为"已发布基线"。"""
     try:
-        PUBLISHED_BASELINE.write_text(
-            json.dumps(snap, ensure_ascii=False, indent=2), encoding="utf-8")
+        _atomic_write_json(PUBLISHED_BASELINE, snap)
     except Exception:
         pass
 
@@ -448,6 +768,7 @@ def write_status_md(snap):
         f"- 服务可用: **{'是' if snap.get('serviceUp') else '否'}**",
         f"- 探测端点数: {len(snap.get('probes') or {})}",
         f"- 已实测鉴权的路由数: {len(auth_map)}",
+        f"- 快照格式版本: v{snap.get('schemaVersion')}",
         "",
         "| 端点 | 说明 | 鉴权 | 状态 | 耗时 | 条目 | 备注 |",
         "|---|---|---|---|---|---|---|",
@@ -465,6 +786,54 @@ def write_status_md(snap):
             f"| `{key}` | {rec.get('label')} | {mode} | {mark} {st} | "
             f"{rec.get('latencyMs')}ms | {rec.get('itemCount', '-')} | {note} |"
         )
+
+    # --- 响应结构明细: 把"字段级"的真实结构也摊开给人看 ---
+    #
+    # 为什么单开一节: 上面的表只说"这个端点活着", 但接口清单真正要回答的问题是
+    # "它返回哪些字段"。手写这种清单必然过期 —— 现在它是从实测响应自动生成的。
+    struct_lines = ["", "## 响应结构 (实测字段指纹)", "",
+                    "> 自动生成: 下面是各端点**实际返回**的字段路径 + 类型。",
+                    "> 服务端改字段名/改类型/删字段, 巡检会立刻报出来并记进 CHANGELOG。",
+                    "> 深度: 顶层 + 再进一层对象 (如 `author.*` / `stats.*` / `firstPost.*`)。",
+                    ""]
+    any_struct = False
+    for key, rec in (snap.get("probes") or {}).items():
+        if rec.get("status") != 200:
+            continue
+        fields = rec.get("fields") or []
+        shapes = rec.get("itemShapes") or []
+        types = rec.get("itemTypes") or {}
+        if not fields and not shapes:
+            continue
+        any_struct = True
+        struct_lines.append(f"### `{key}`")
+        struct_lines.append("")
+        if fields:
+            struct_lines.append("顶层字段:")
+            struct_lines.append("")
+            struct_lines.append("```")
+            for f in fields:
+                struct_lines.append(f)
+            struct_lines.append("```")
+        if shapes:
+            v = rec.get("itemVariants")
+            struct_lines.append("")
+            struct_lines.append(
+                f"列表项形态 ({len(shapes)} 种"
+                + (", 数据形态数与内容无关" if len(shapes) > 1 else "") + "):")
+            for i, shape in enumerate(shapes, 1):
+                struct_lines.append("")
+                struct_lines.append(f"形态 {i}:")
+                struct_lines.append("")
+                struct_lines.append("```")
+                for f in shape:
+                    # 类型能从 itemTypes 里补上就补上 (null = 该字段本次没值/类型未定)
+                    ty = types.get(f)
+                    struct_lines.append(f"{f}:{ty}" if ty else f)
+                struct_lines.append("```")
+        struct_lines.append("")
+    if any_struct:
+        lines.extend(struct_lines)
     lines += [
         "",
         "## 怎么读这张表",
@@ -699,6 +1068,7 @@ def main():
     snap = {
         "generatedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
         "serviceUp": True,
+        "schemaVersion": SCHEMA_VERSION,
         "probes": probes,
         "auth": auth,
     }
