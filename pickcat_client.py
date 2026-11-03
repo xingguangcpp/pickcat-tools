@@ -733,8 +733,13 @@ class PickcatClient:
         return resp
 
     def create_reply(self, topic_id, markdown, reply_to_post_number=None,
-                     watermark=True, wm_position="end"):
-        """POST /api/v1/posts 发布回帖 (可楼中楼)。默认追加隐形水印组 + 选中可见标记。"""
+                     watermark=True, wm_position="end", channel=None):
+        """POST /api/v1/posts 发布回帖 (可楼中楼)。默认追加隐形水印组 + 选中可见标记。
+
+        channel: "comment" (顶层评论) / "reply" (楼中楼回复)。写进账本,
+        让"今天发了几条顶层评论、几条楼中楼"可以精确统计 —— 每日上限是硬
+        规矩, 计数不能靠猜。
+        """
         body = {"topicId": topic_id, "markdown": markdown}
         if reply_to_post_number is not None:
             body["replyToPostNumber"] = reply_to_post_number
@@ -766,6 +771,7 @@ class PickcatClient:
                 {
                     "seq": seq,
                     "kind": "reply",
+                    "channel": channel or ("comment" if reply_to_post_number in (None, 1) else "reply"),
                     "topicId": topic_id,
                     "postId": resp.get("postId"),
                     "submissionId": resp.get("submissionId"),

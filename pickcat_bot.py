@@ -144,9 +144,17 @@ def load_state():
 
 
 def save_state(st):
-    state_file(".bot_state.json").write_text(
-        json.dumps(st, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    """原子写状态文件: 先写临时文件, 再 os.replace 覆盖。
+
+    原来直接 write_text, 写到一半被打断 (进程被杀/断电) 就会留下一个
+    半截 JSON。下次 load_state() 解析失败 -> 吞异常返回 {} -> 当天计数
+    归零 -> 每日上限被静默清零 (详见 daily_guard 的注释)。
+    os.replace 在同一文件系统上是原子的, 所以要么完整, 要么还是旧的。
+    """
+    p = state_file(".bot_state.json")
+    tmp = p.with_name(p.name + ".tmp")
+    tmp.write_text(json.dumps(st, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, p)
 
 
 def today_key():
@@ -254,13 +262,68 @@ def my_top_level_count(c, topic_id, uid):
 
 
 def daily_guard(st, key):
-    """返回 (今天计数 dict, 是否超限)。跨天自动清零。"""
+    """返回 (今天计数 dict, 是否超限)。跨天自动清零。
+
+    **计数以账本为准, state 只是缓存。**
+    账本 (.wm_ledger.json) 记着每一次写操作的 topicId/replyTo/时间, 是
+    "今天到底发了几条顶层评论、几条楼中楼" 的权威依据; 而 .bot_state.json
+    是可变的派生缓存, 会因为各种原因丢 (文件损坏、误删、换机器、被
+    .gitignore 排除后没带过来) —— 它的 load_state() 还会吞掉 JSON 解析
+    异常直接返回 {}。
+
+    老实现只读 state: 状态文件一丢, 当天计数就变成 0/0, 于是
+    "每日评论<=3 / 每日回复<=12" 这两条硬上限被静默清零, 机器人当天
+    可以再发 3 条顶层评论 + 12 条回复 —— 变成 6 条评论 / 24 条回复,
+    超出用户定的规矩一倍。
+
+    现在改成: 从账本重算当天计数, 与 state 取**较大值**。
+    取较大值而不是直接覆盖, 是为了同时兜住两种偏差:
+      - state 丢了/旧了 -> 账本把真实用量捞回来
+      - 账本某条写操作没记上 (极端情况) -> state 不至于把用量记小
+    两边一致时就是原值, 行为不变。
+    """
     d = st.setdefault("daily", {})
     if d.get("date") != today_key():
         d["date"] = today_key()
         d["comments"] = 0
         d["replies"] = 0
+    # 用账本校准 (账本是权威)。跨天的记录不参与统计。
+    try:
+        led_c, led_r = ledger_daily_counts(today_key())
+        d["comments"] = max(int(d.get("comments", 0) or 0), led_c)
+        d["replies"] = max(int(d.get("replies", 0) or 0), led_r)
+    except Exception:
+        pass
     return d
+
+
+def ledger_daily_counts(day):
+    """从本地账本统计某天的 (顶层评论数, 楼中楼回复数)。
+
+    优先用账本里的 channel 字段 ("comment" / "reply") —— 那是写操作时
+    显式记下的通道, 最准。老记录没有 channel 字段, 回退到按 replyTo
+    推断: replyTo 属于 (None, 1) 的算顶层评论, 其余算楼中楼回复 ——
+    与 create_reply 的传参一致 (comment 固定 replyTo=1, reply 传对方楼层号)。
+    "at" 字段前 10 位就是日期, 按天切分。
+    """
+    from pickcat_client import ledger_read
+
+    c = 0
+    r = 0
+    for rec in ledger_read():
+        if rec.get("kind") != "reply":
+            continue
+        if str(rec.get("at") or "")[:10] != day:
+            continue
+        ch = rec.get("channel")
+        if ch not in ("comment", "reply"):
+            rt = rec.get("replyTo")
+            ch = "comment" if rt is None or int(rt) == 1 else "reply"
+        if ch == "comment":
+            c += 1
+        else:
+            r += 1
+    return c, r
 
 
 # ---------------------------------------------------------------- check
@@ -627,7 +690,8 @@ def cmd_reply(c, args):
         sys.exit(3)
 
     resp = c.create_reply(
-        args.topic_id, args.body, reply_to_post_number=args.reply_to
+        args.topic_id, args.body, reply_to_post_number=args.reply_to,
+        channel="reply",
     )
     d["replies"] += 1
     # 顺手关注这个帖 (以后有人回我继续跟)
@@ -664,7 +728,8 @@ def cmd_comment(c, args):
         print(f"[护栏] 今日评论已达上限 {MAX_COMMENTS_PER_DAY}, 跳过。", file=sys.stderr)
         sys.exit(3)
 
-    resp = c.create_reply(args.topic_id, args.body, reply_to_post_number=1)
+    resp = c.create_reply(args.topic_id, args.body, reply_to_post_number=1,
+                           channel="comment")
     d["comments"] += 1
     w = st.setdefault("watched", {})
     if args.topic_id not in w:
