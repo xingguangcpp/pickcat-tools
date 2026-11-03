@@ -58,7 +58,7 @@ PROBES = [
     ("主题详情", "/api/v1/topics/{tid}", True),
     ("主题下的回复", "/api/v1/topics/{tid}/posts?limit=5", True),
     ("主题回复(按最新排序)", "/api/v1/topics/{tid}/posts?limit=5&sort=latest", True),
-    ("单条回复详情", "/api/v1/posts/{pid}", True),
+    ("单条回复详情", "/api/v1/posts/{pid}", False),
     ("标签列表", "/api/v1/tags", True),
     ("标签带 limit(应被拒: 未知参数)", "/api/v1/tags?limit=20", True),
     ("用户资料(含等级/统计)", "/api/v1/users/{uid}", True),
@@ -67,13 +67,13 @@ PROBES = [
     ("用户回复(role 非法, 应报错)", "/api/v1/users/{uid}/posts?role=bogus", True),
     ("粉丝列表", "/api/v1/users/{uid}/followers?limit=5", True),
     ("关注列表", "/api/v1/users/{uid}/following?limit=5", True),
-    ("通知列表", "/api/v1/notifications?limit=10", True),
+    ("通知列表", "/api/v1/notifications?limit=10", False),
     ("作品列表", "/api/v1/works?limit=5", True),
     ("徽章列表", "/api/v1/badges", True),
     ("表情包集列表", "/api/v1/emoji-collections", True),
     ("表情包(需 collectionId)", "/api/v1/emojis?collectionId={cid}", True),
     ("会话(需登录)", "/api/v1/session", False),
-    ("我自己的主题(需登录)", "/api/v1/users/{uid}/topics?limit=5", False),
+    ("我自己的主题(需登录)", "/api/v1/users/{uid}/topics?limit=5", True),
     ("投稿审核状态(需登录)", "/api/v1/post-submissions/{sid}", False),
     ("不存在的端点(应 404)", "/api/v1/__probe_nonexistent__", True),
     ("posts 列表(已知不可用)", "/api/v1/posts?limit=5", True),
@@ -82,10 +82,20 @@ PROBES = [
     ("主题回复 sort 非法(应泄露 sort 枚举)", "/api/v1/topics/{tid}/posts?limit=5&sort=bogus", True),
     ("用户回复加 sort(该端点无 sort 参数)", "/api/v1/users/{uid}/posts?role=reply&sort=bogus", True),
     ("通知 limit 超过上限(应泄露上限值)", "/api/v1/notifications?limit=100", True),
-    ("通知 limit 取上限(应 200)", "/api/v1/notifications?limit=50", True),
+    ("通知 limit 取上限(应 200)", "/api/v1/notifications?limit=50", False),
     ("topics 带 sort(应支持)", "/api/v1/topics?limit=5&sort=latest", True),
     ("粉丝列表带非法 cursor(应被拒)", "/api/v1/users/{uid}/followers?limit=5&cursor=abc", True),
     ("表情包嵌套路径(已知不可用, 须用 collectionId)", "/api/v1/emoji-collections/{cid}/emojis", True),
+    # --- 2026-11-03 补充: 端点发现 + 匿名实测校正 ---
+    ("服务健康检查", "/api/v1/health", True),
+    ("用户徽章", "/api/v1/users/{uid}/badges", True),
+    ("作品详情", "/api/v1/works/{wid}", True),
+    ("表情包集详情", "/api/v1/emoji-collections/{cid}", True),
+    ("topics kind 非法(应泄露 kind 枚举)", "/api/v1/topics?limit=5&kind=bogus", True),
+    ("topics kind=DISCUSSION(应 200)", "/api/v1/topics?limit=5&kind=DISCUSSION", True),
+    ("works 不支持 kind(应报错)", "/api/v1/works?limit=5&kind=DISCUSSION", True),
+    ("用户主题不支持 kind(应报错)", "/api/v1/users/{uid}/topics?limit=5&kind=DISCUSSION", True),
+    ("通知 limit 非数字(应报错)", "/api/v1/users/{uid}/followers?limit=abc", True),
 ]
 
 
@@ -98,6 +108,7 @@ def _subst(path, ctx):
                 .replace("{pid}", ctx["pid"])
                 .replace("{uid}", ctx["uid"])
                 .replace("{cid}", ctx["cid"])
+                .replace("{wid}", ctx["wid"])
                 .replace("{sid}", ctx["sid"]))
 
 
@@ -108,6 +119,7 @@ def build_context(c):
         "pid": "01a1972c-0bef-7aa6-858c-d5938427dae4",
         "uid": "01a0d338-72f2-731e-a0c5-10724fc89813",
         "cid": "",
+        "wid": "",
         "sid": "01a1956c-c398-7b35-9ff2-626cd135b1dd",
     }
     try:
@@ -122,6 +134,13 @@ def build_context(c):
         items = (cols.get("items") if isinstance(cols, dict) else cols) or []
         if items:
             ctx["cid"] = items[0].get("id", "")
+    except Exception:
+        pass
+    try:
+        works = c._request("GET", "/api/v1/works?limit=1")
+        items = (works.get("items") if isinstance(works, dict) else works) or []
+        if items:
+            ctx["wid"] = items[0].get("id", "")
     except Exception:
         pass
     return ctx

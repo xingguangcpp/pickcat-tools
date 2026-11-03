@@ -404,20 +404,27 @@ python pickcat_cli.py --account aibot post --title "..." --body "..."
 | `GET /api/v1/topics?limit=N` | 公开 | **社区帖子 feed**, 带游标分页 |
 | `GET /api/v1/topics/{id}` | 公开 | 主题详情 (replyCount / repliesTruncated / lastActivityAt / closedAt / pinned) |
 | `GET /api/v1/topics/{id}/posts` | 公开 | 主题下的回复 (可能被截断; `sort` ∈ `hot`/`latest`/`earliest`) |
-| `GET /api/v1/posts/{postId}` | 公开 | 单条回复详情 (准确; 查单条回复时用它) |
+| `GET /api/v1/posts/{postId}` | 需登录 | 单条回复详情 (准确; 查单条回复时用它) |
 | `GET /api/v1/users/{uid}` | 公开 | 用户资料 (username / bio / region) |
-| `GET /api/v1/users/{uid}/topics` | 需登录 | 列本人主题 |
+| `GET /api/v1/users/{uid}/topics` | 公开 | 列某人的主题 |
 | `GET /api/v1/users/{uid}/posts?role=reply` | 公开 | 列某人的回复 (`role` 只认 `reply`) |
 | `GET /api/v1/users/{uid}/followers` / `following` | 公开 | 粉丝 / 关注列表 |
-| `GET /api/v1/notifications` | 公开 | 通知 (`REPLY_CREATED` / `POST_LIKED` / `USER_FOLLOWED`) |
+| `GET /api/v1/users/{uid}/badges` | 公开 | 该用户已获徽章 |
+| `GET /api/v1/notifications` | 需登录 | 通知 (`REPLY_CREATED` / `POST_LIKED` / `USER_FOLLOWED`) |
 | `GET /api/v1/works` | 公开 | 作品列表 |
+| `GET /api/v1/works/{workId}` | 公开 | 作品详情 (coinCount / favoriteCount / commentCount) |
 | `GET /api/v1/badges` | 公开 | 徽章列表 (8 个) |
 | `GET /api/v1/tags` | 公开 | 标签列表 (11 个, 带 slug) |
 | `GET /api/v1/emoji-collections` | 公开 | 表情包集列表 (9 个) |
+| `GET /api/v1/emoji-collections/{id}` | 公开 | 表情包集详情 (coverUrl / position / version) |
 | `GET /api/v1/emojis?collectionId=<uuid>` | 公开 | 某个集合里的表情 (必须带 collectionId) |
+| `GET /api/v1/health` | 公开 | 健康检查 (status / service / timestamp) |
 | `POST /api/v1/posts` | 需登录 | 发帖/回帖 (需 Idempotency-Key, 返回 202 异步审核) |
 | `GET /api/v1/post-submissions/{id}` | 需登录 | 查审核状态 (PENDING_PROVIDER → PENDING_PUBLICATION → PUBLISHED) |
 | `GET /api/v1/post-submissions?contentRole=&status=` | 需登录 | 投稿列表 (**必须带这两个参数**; `contentRole`∈TOPIC_FIRST_POST/TOPIC_REPLY/WORK_COMMENT, `status`∈PENDING/REJECTED) |
+
+> 鉴权列是**匿名实测**的结果 (不带 cookie 直接打), 不是照抄文档。
+> `GET /api/v1/files` 路由存在但恒 401, 尚未开放。
 
 **参数校验极严, 而且会泄露 schema**: 服务端用 Zod 校验 query, **未知参数直接 400**。
 所以 `?limit=20` 在 `topics` 上能用、在 `tags` 上就 400 —— 说明 `tags` 没这个参数。
@@ -432,7 +439,13 @@ GET /api/v1/emojis
 
 GET /api/v1/topics?cursor=abc
 -> 400 {"code":"INVALID_CURSOR"}     # 专门的错误码, 说明 cursor 是已知参数只是值不对
+
+GET /api/v1/topics?limit=5&kind=bogus
+-> 400 {"details":{"kind":["Invalid option: expected one of \"DISCUSSION\"|\"QUESTION\""]}}
 ```
+
+`kind` 只有 `topics` feed 支持 (`DISCUSSION` / `QUESTION`), `works` 和 `users/{uid}/topics`
+加 `kind` 会 400 —— 用非法值问枚举, 比翻文档快。
 
 ## 内置护栏 (为什么这样设计)
 1. **写操作强制间隔** (`--min-interval`, 默认 5s): 防止脚本瞬间狂发被风控。
