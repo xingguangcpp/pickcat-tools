@@ -1,79 +1,85 @@
 # API 实时状态 (自动生成)
 
-> 由 `pickcat_probe.py` 于 **2026-11-03 22:16:38** 自动生成, 不要手改。
+> 由 `pickcat_probe.py` 于 **2026-11-04 21:26:06** 自动生成, 不要手改。
 > 手写补充请放 README 的「已知 API 坑」一节; 本文件只反映**当前探测到的真实状态**。
 
 - 服务可用: **是**
-- 探测端点数: 64
-- 已实测鉴权的路由数: 37
-- 快照格式版本: v4
+- 探测端点数: 70
+- 已实测鉴权的路由数: 43
+- 快照格式版本: v5
 
 | 端点 | 说明 | 鉴权 | 状态 | 耗时 | 条目 | 备注 |
 |---|---|---|---|---|---|---|
-| `GET /api/v1/topics?limit=5` | 社区帖子 feed | 公开 | ✅ 200 | 84ms | 5 |  |
-| `GET /api/v1/topics/{tid}` | 主题详情 | 公开 | ✅ 200 | 121ms | None |  |
-| `GET /api/v1/topics/{tid}/posts?limit=5` | 主题下的回复 | 公开 | ✅ 200 | 84ms | 0 |  |
-| `GET /api/v1/topics/{tid}/posts?limit=5&sort=latest` | 主题回复(按最新排序) | 公开 | ✅ 200 | 114ms | 0 |  |
-| `GET /api/v1/posts/{pid}` | 单条回复详情 | 需登录 | ✅ 200 | 109ms | None |  |
-| `GET /api/v1/tags` | 标签列表 | 公开 | ✅ 200 | 109ms | 11 |  |
-| `GET /api/v1/tags?limit=20` | 标签带 limit(应被拒: 未知参数) | 公开 | ⚠️ 400 | 65ms | - | VALIDATION_FAILED |
-| `GET /api/v1/users/{uid}` | 用户资料(含等级/统计) | 公开 | ✅ 200 | 153ms | None |  |
-| `GET /api/v1/post-submissions?contentRole=TOPIC_REPLY&status=PENDING` | 投稿列表(需 contentRole+status) | 需登录 | ✅ 200 | 76ms | 0 |  |
-| `GET /api/v1/users/{uid}/posts?role=reply&limit=5` | 用户回复(role=reply) | 公开 | ✅ 200 | 88ms | 5 |  |
-| `GET /api/v1/users/{uid}/posts?role=bogus` | 用户回复(role 非法, 应报错) | 公开 | ⚠️ 400 | 105ms | - | VALIDATION_FAILED {"role": ["Invalid input: expected \"reply\""]} |
-| `GET /api/v1/users/{uid}/followers?limit=5` | 粉丝列表 | 公开 | ✅ 200 | 125ms | 5 |  |
-| `GET /api/v1/users/{uid}/following?limit=5` | 关注列表 | 公开 | ✅ 200 | 110ms | 3 |  |
-| `GET /api/v1/notifications?limit=10` | 通知列表 | 需登录 | ✅ 200 | 105ms | 10 |  |
-| `GET /api/v1/works?limit=5` | 作品列表 | 公开 | ✅ 200 | 104ms | 5 |  |
-| `GET /api/v1/badges` | 徽章列表 | 公开 | ✅ 200 | 125ms | 8 |  |
-| `GET /api/v1/emoji-collections` | 表情包集列表 | 公开 | ✅ 200 | 100ms | 9 |  |
-| `GET /api/v1/emojis?collectionId={cid}` | 表情包(需 collectionId) | 公开 | ✅ 200 | 100ms | 12 |  |
-| `GET /api/v1/session` | 会话(需登录) | 需登录 | ✅ 200 | 115ms | None |  |
-| `GET /api/v1/users/{uid}/topics?limit=5` | 我自己的主题(需登录) | 公开 | ✅ 200 | 108ms | 5 |  |
-| `GET /api/v1/post-submissions/{sid}` | 投稿审核状态(需登录) | 需登录 | ✅ 200 | 127ms | None |  |
-| `GET /api/v1/__probe_nonexistent__` | 不存在的端点(应 404) | 不存在 | ❌ 404 | 71ms | - | ROUTE_NOT_FOUND |
-| `GET /api/v1/posts?limit=5` | posts 列表(已知不可用) | 不存在 | ❌ 404 | 86ms | - | ROUTE_NOT_FOUND |
-| `GET /api/v1/topics?cursor=abc` | 非法 cursor | 公开 | ⚠️ 400 | 75ms | - | INVALID_CURSOR |
-| `GET /api/v1/topics/{tid}/posts?limit=5&sort=bogus` | 主题回复 sort 非法(应泄露 sort 枚举) | 公开 | ⚠️ 400 | 90ms | - | VALIDATION_FAILED {"sort": ["Invalid option: expected one of \"hot\"|\"latest\"|\"earliest\""]} |
-| `GET /api/v1/users/{uid}/posts?role=reply&sort=bogus` | 用户回复加 sort(该端点无 sort 参数) | 公开 | ⚠️ 400 | 80ms | - | VALIDATION_FAILED |
-| `GET /api/v1/notifications?limit=100` | 通知 limit 超过上限(应泄露上限值) | 需登录 | ⚠️ 400 | 94ms | - | VALIDATION_FAILED {"limit": ["Too big: expected number to be <=50"]} |
-| `GET /api/v1/notifications?limit=50` | 通知 limit 取上限(应 200) | 需登录 | ✅ 200 | 126ms | 50 |  |
-| `GET /api/v1/topics?limit=5&sort=latest` | topics 带 sort(应支持) | 公开 | ✅ 200 | 91ms | 5 |  |
-| `GET /api/v1/users/{uid}/followers?limit=5&cursor=abc` | 粉丝列表带非法 cursor(应被拒) | 公开 | ⚠️ 400 | 189ms | - | VALIDATION_FAILED {"cursor": ["游标不合法"]} |
-| `GET /api/v1/emoji-collections/{cid}/emojis` | 表情包嵌套路径(已知不可用, 须用 collectionId) | 不存在 | ❌ 404 | 95ms | - | ROUTE_NOT_FOUND |
-| `GET /api/v1/health` | 服务健康检查 | 公开 | ✅ 200 | 154ms | None |  |
-| `GET /api/v1/users/{uid}/badges` | 用户徽章 | 公开 | ✅ 200 | 122ms | 1 |  |
-| `GET /api/v1/works/{wid}` | 作品详情 | 公开 | ✅ 200 | 103ms | None |  |
-| `GET /api/v1/emoji-collections/{cid}` | 表情包集详情 | 公开 | ✅ 200 | 136ms | None |  |
-| `GET /api/v1/topics?limit=5&kind=bogus` | topics kind 非法(应泄露 kind 枚举) | 公开 | ⚠️ 400 | 68ms | - | VALIDATION_FAILED {"kind": ["Invalid option: expected one of \"DISCUSSION\"|\"QUESTION\""]} |
-| `GET /api/v1/topics?limit=5&kind=DISCUSSION` | topics kind=DISCUSSION(应 200) | 公开 | ✅ 200 | 95ms | 5 |  |
-| `GET /api/v1/works?limit=5&kind=DISCUSSION` | works 不支持 kind(应报错) | 公开 | ⚠️ 400 | 95ms | - | VALIDATION_FAILED |
-| `GET /api/v1/users/{uid}/topics?limit=5&kind=DISCUSSION` | 用户主题不支持 kind(应报错) | 公开 | ⚠️ 400 | 81ms | - | VALIDATION_FAILED |
-| `GET /api/v1/users/{uid}/followers?limit=abc` | 通知 limit 非数字(应报错) | 公开 | ⚠️ 400 | 94ms | - | VALIDATION_FAILED {"limit": ["Invalid input: expected number, received NaN"]} |
-| `GET /api/v1/files?limit=1` | 文件列表(需登录) | 需登录 | ✅ 200 | 116ms | 1 |  |
-| `GET /api/v1/files/{fid}` | 文件详情(公开可读原图) | 公开 | ✅ 200 | 147ms | None |  |
-| `GET /api/v1/files/00000000-0000-0000-0000-000000000000` | 文件不存在(应 404 FILE_NOT_FOUND) | 不存在 | ❌ 404 | 323ms | - | FILE_NOT_FOUND |
-| `GET /api/v1/works/{wid}/comments` | 作品评论列表 | 公开 | ✅ 200 | 97ms | 0 |  |
-| `GET /api/v1/works/{wid}/comments/1` | 作品评论(按楼号, 需登录) | 需登录 | ❌ 404 | 71ms | - | WORK_COMMENT_NOT_FOUND |
-| `GET /api/v1/works/{wid}/comments/0` | 作品评论楼号非法(应泄露下限) | 需登录 | ⚠️ 400 | 92ms | - | VALIDATION_FAILED {"commentNumber": ["Too small: expected number to be >=1"]} |
-| `GET /api/v1/users/{uid}/works?limit=1` | 用户作品列表 | 公开 | ✅ 200 | 152ms | 1 |  |
-| `GET /api/v1/badges/{bid}` | 徽章详情(id 是 slug 非 UUID) | 公开 | ✅ 200 | 101ms | None |  |
-| `GET /api/v1/badges/__probe_no_such_badge__` | 徽章不存在(应 404 BADGE_NOT_FOUND) | 不存在 | ❌ 404 | 102ms | - | BADGE_NOT_FOUND |
-| `GET /api/v1/permissions` | 权限列表(需 access.manage) | 需登录 | ❌ 403 | 101ms | - | PERMISSION_DENIED {"permissionKey": "access.manage"} |
-| `GET /api/v1/users/{uid}/level` | 用户等级(需 community.level.manage) | 需登录 | ❌ 403 | 75ms | - | PERMISSION_DENIED {"permissionKey": "community.level.manage"} |
-| `GET /api/v1/emojis/{eid}` | 表情详情(需 community.emoji.manage) | 需登录 | ❌ 403 | 104ms | - | PERMISSION_DENIED {"permissionKey": "community.emoji.manage"} |
-| `GET /api/v1/topics?limit=51` | topics limit 超过上限(应为 50) | 公开 | ⚠️ 400 | 108ms | - | VALIDATION_FAILED {"limit": ["Too big: expected number to be <=50"]} |
+| `GET /api/v1/topics?limit=5` | 社区帖子 feed | 公开 | ✅ 200 | 198ms | 5 |  |
+| `GET /api/v1/topics/{tid}` | 主题详情 | 公开 | ✅ 200 | 217ms | None |  |
+| `GET /api/v1/topics/{tid}/posts?limit=5` | 主题下的回复 | 公开 | ✅ 200 | 160ms | 0 |  |
+| `GET /api/v1/topics/{tid}/posts?limit=5&sort=latest` | 主题回复(按最新排序) | 公开 | ✅ 200 | 212ms | 0 |  |
+| `GET /api/v1/posts/{pid}` | 单条回复详情 | 需登录 | ✅ 200 | 153ms | None |  |
+| `GET /api/v1/tags` | 标签列表 | 公开 | ✅ 200 | 155ms | 11 |  |
+| `GET /api/v1/tags?limit=20` | 标签带 limit(应被拒: 未知参数) | 公开 | ⚠️ 400 | 144ms | - | VALIDATION_FAILED |
+| `GET /api/v1/users/{uid}` | 用户资料(含等级/统计) | 公开 | ✅ 200 | 220ms | None |  |
+| `GET /api/v1/post-submissions?contentRole=TOPIC_REPLY&status=PENDING` | 投稿列表(需 contentRole+status) | 需登录 | ✅ 200 | 118ms | 0 |  |
+| `GET /api/v1/users/{uid}/posts?role=reply&limit=5` | 用户回复(role=reply) | 公开 | ✅ 200 | 126ms | 5 |  |
+| `GET /api/v1/users/{uid}/posts?role=bogus` | 用户回复(role 非法, 应报错) | 公开 | ⚠️ 400 | 126ms | - | VALIDATION_FAILED {"role": ["Invalid input: expected \"reply\""]} |
+| `GET /api/v1/users/{uid}/followers?limit=5` | 粉丝列表 | 公开 | ✅ 200 | 267ms | 5 |  |
+| `GET /api/v1/users/{uid}/following?limit=5` | 关注列表 | 公开 | ✅ 200 | 153ms | 3 |  |
+| `GET /api/v1/notifications?limit=10` | 通知列表 | 需登录 | ✅ 200 | 202ms | 10 |  |
+| `GET /api/v1/works?limit=5` | 作品列表 | 公开 | ✅ 200 | 184ms | 5 |  |
+| `GET /api/v1/badges` | 徽章列表 | 公开 | ✅ 200 | 276ms | 8 |  |
+| `GET /api/v1/emoji-collections` | 表情包集列表 | 公开 | ✅ 200 | 181ms | 9 |  |
+| `GET /api/v1/emojis?collectionId={cid}` | 表情包(需 collectionId) | 公开 | ✅ 200 | 128ms | 12 |  |
+| `GET /api/v1/session` | 会话(需登录) | 需登录 | ✅ 200 | 274ms | None |  |
+| `GET /api/v1/users/{uid}/topics?limit=5` | 我自己的主题(需登录) | 公开 | ✅ 200 | 175ms | 5 |  |
+| `GET /api/v1/post-submissions/{sid}` | 投稿审核状态(需登录) | 需登录 | ✅ 200 | 193ms | None |  |
+| `GET /api/v1/__probe_nonexistent__` | 不存在的端点(应 404) | 不存在 | ❌ 404 | 131ms | - | ROUTE_NOT_FOUND |
+| `GET /api/v1/posts?limit=5` | posts 列表(已知不可用) | 不存在 | ❌ 404 | 163ms | - | ROUTE_NOT_FOUND |
+| `GET /api/v1/topics?cursor=abc` | 非法 cursor | 公开 | ⚠️ 400 | 177ms | - | INVALID_CURSOR |
+| `GET /api/v1/topics/{tid}/posts?limit=5&sort=bogus` | 主题回复 sort 非法(应泄露 sort 枚举) | 公开 | ⚠️ 400 | 274ms | - | VALIDATION_FAILED {"sort": ["Invalid option: expected one of \"hot\"|\"latest\"|\"earliest\""]} |
+| `GET /api/v1/users/{uid}/posts?role=reply&sort=bogus` | 用户回复加 sort(该端点无 sort 参数) | 公开 | ⚠️ 400 | 143ms | - | VALIDATION_FAILED |
+| `GET /api/v1/notifications?limit=100` | 通知 limit 超过上限(应泄露上限值) | 需登录 | ⚠️ 400 | 158ms | - | VALIDATION_FAILED {"limit": ["Too big: expected number to be <=50"]} |
+| `GET /api/v1/notifications?limit=50` | 通知 limit 取上限(应 200) | 需登录 | ✅ 200 | 207ms | 50 |  |
+| `GET /api/v1/topics?limit=5&sort=latest` | topics 带 sort(应支持) | 公开 | ✅ 200 | 235ms | 5 |  |
+| `GET /api/v1/users/{uid}/followers?limit=5&cursor=abc` | 粉丝列表带非法 cursor(应被拒) | 公开 | ⚠️ 400 | 155ms | - | VALIDATION_FAILED {"cursor": ["游标不合法"]} |
+| `GET /api/v1/emoji-collections/{cid}/emojis` | 表情包嵌套路径(已知不可用, 须用 collectionId) | 不存在 | ❌ 404 | 173ms | - | ROUTE_NOT_FOUND |
+| `GET /api/v1/health` | 服务健康检查 | 公开 | ✅ 200 | 233ms | None |  |
+| `GET /api/v1/users/{uid}/badges` | 用户徽章 | 公开 | ✅ 200 | 213ms | 1 |  |
+| `GET /api/v1/works/{wid}` | 作品详情 | 公开 | ✅ 200 | 252ms | None |  |
+| `GET /api/v1/emoji-collections/{cid}` | 表情包集详情 | 公开 | ✅ 200 | 158ms | None |  |
+| `GET /api/v1/topics?limit=5&kind=bogus` | topics kind 非法(应泄露 kind 枚举) | 公开 | ⚠️ 400 | 194ms | - | VALIDATION_FAILED {"kind": ["Invalid option: expected one of \"DISCUSSION\"|\"QUESTION\""]} |
+| `GET /api/v1/topics?limit=5&kind=DISCUSSION` | topics kind=DISCUSSION(应 200) | 公开 | ✅ 200 | 204ms | 5 |  |
+| `GET /api/v1/works?limit=5&kind=DISCUSSION` | works 不支持 kind(应报错) | 公开 | ⚠️ 400 | 199ms | - | VALIDATION_FAILED |
+| `GET /api/v1/users/{uid}/topics?limit=5&kind=DISCUSSION` | 用户主题不支持 kind(应报错) | 公开 | ⚠️ 400 | 168ms | - | VALIDATION_FAILED |
+| `GET /api/v1/users/{uid}/followers?limit=abc` | 通知 limit 非数字(应报错) | 公开 | ⚠️ 400 | 237ms | - | VALIDATION_FAILED {"limit": ["Invalid input: expected number, received NaN"]} |
+| `GET /api/v1/files?limit=1` | 文件列表(需登录) | 需登录 | ✅ 200 | 268ms | 1 |  |
+| `GET /api/v1/files/{fid}` | 文件详情(公开可读原图) | 公开 | ✅ 200 | 327ms | None |  |
+| `GET /api/v1/files/00000000-0000-0000-0000-000000000000` | 文件不存在(应 404 FILE_NOT_FOUND) | 不存在 | ❌ 404 | 138ms | - | FILE_NOT_FOUND |
+| `GET /api/v1/works/{wid}/comments` | 作品评论列表 | 公开 | ✅ 200 | 220ms | 0 |  |
+| `GET /api/v1/works/{wid}/comments/1` | 作品评论(按楼号, 需登录) | 需登录 | ❌ 404 | 132ms | - | WORK_COMMENT_NOT_FOUND |
+| `GET /api/v1/works/{wid}/comments/0` | 作品评论楼号非法(应泄露下限) | 需登录 | ⚠️ 400 | 156ms | - | VALIDATION_FAILED {"commentNumber": ["Too small: expected number to be >=1"]} |
+| `GET /api/v1/users/{uid}/works?limit=1` | 用户作品列表 | 公开 | ✅ 200 | 190ms | 1 |  |
+| `GET /api/v1/badges/{bid}` | 徽章详情(id 是 slug 非 UUID) | 公开 | ✅ 200 | 214ms | None |  |
+| `GET /api/v1/badges/__probe_no_such_badge__` | 徽章不存在(应 404 BADGE_NOT_FOUND) | 不存在 | ❌ 404 | 158ms | - | BADGE_NOT_FOUND |
+| `GET /api/v1/permissions` | 权限列表(需 access.manage) | 需登录 | ❌ 403 | 105ms | - | PERMISSION_DENIED {"permissionKey": "access.manage"} |
+| `GET /api/v1/users/{uid}/level` | 用户等级(需 community.level.manage) | 需登录 | ❌ 403 | 201ms | - | PERMISSION_DENIED {"permissionKey": "community.level.manage"} |
+| `GET /api/v1/emojis/{eid}` | 表情详情(需 community.emoji.manage) | 需登录 | ❌ 403 | 192ms | - | PERMISSION_DENIED {"permissionKey": "community.emoji.manage"} |
+| `GET /api/v1/topics?limit=51` | topics limit 超过上限(应为 50) | 公开 | ⚠️ 400 | 126ms | - | VALIDATION_FAILED {"limit": ["Too big: expected number to be <=50"]} |
 | `GET /api/v1/works?limit=51` | works limit 超过上限(应为 50) | 公开 | ⚠️ 400 | 104ms | - | VALIDATION_FAILED {"limit": ["Too big: expected number to be <=50"]} |
-| `GET /api/v1/users/{uid}/posts?role=reply&limit=51` | 用户回复 limit 超过上限(应为 50) | 公开 | ⚠️ 400 | 83ms | - | VALIDATION_FAILED {"limit": ["Too big: expected number to be <=50"]} |
-| `GET /api/v1/topics/{tid}/posts?limit=101` | 主题回复 limit 超过上限(应为 100) | 公开 | ⚠️ 400 | 75ms | - | VALIDATION_FAILED {"limit": ["Too big: expected number to be <=100"]} |
-| `GET /api/v1/files?limit=101` | 文件 limit 超过上限(应为 100) | 需登录 | ⚠️ 400 | 65ms | - | VALIDATION_FAILED {"limit": ["Too big: expected number to be <=100"]} |
-| `GET /api/v1/users/{uid}/works?limit=51` | 用户作品 limit 超过上限(应为 50) | 公开 | ⚠️ 400 | 94ms | - | VALIDATION_FAILED {"limit": ["Too big: expected number to be <=50"]} |
-| `GET /api/v1/topics?limit=5&sort=bogus` | topics feed sort 非法(应泄露 relevance|latest) | 公开 | ⚠️ 400 | 92ms | - | VALIDATION_FAILED {"sort": ["Invalid option: expected one of \"relevance\"|\"latest\""]} |
-| `GET /api/v1/topics?limit=5&sort=relevance` | topics sort=relevance(浏览模式应被拒) | 公开 | ⚠️ 400 | 145ms | - | VALIDATION_FAILED {"sort": ["浏览模式不能按相关性排序"]} |
-| `GET /api/v1/works/{wid}/comments?sort=bogus` | 作品评论 sort 非法(应泄露 hot|latest|earliest) | 公开 | ⚠️ 400 | 66ms | - | VALIDATION_FAILED {"sort": ["Invalid option: expected one of \"hot\"|\"latest\"|\"earliest\""]} |
-| `GET /api/v1/emoji-collections?limit=5` | 表情包集带 limit(该端点无此参数) | 公开 | ⚠️ 400 | 86ms | - | VALIDATION_FAILED |
-| `GET /api/v1/emojis?collectionId={cid}&limit=5` | 表情包带 limit(该端点无此参数) | 公开 | ⚠️ 400 | 111ms | - | VALIDATION_FAILED |
-| `GET /api/v1/badges?limit=1` | 徽章带 limit(该端点接受但不生效) | 公开 | ✅ 200 | 89ms | 8 |  |
+| `GET /api/v1/users/{uid}/posts?role=reply&limit=51` | 用户回复 limit 超过上限(应为 50) | 公开 | ⚠️ 400 | 110ms | - | VALIDATION_FAILED {"limit": ["Too big: expected number to be <=50"]} |
+| `GET /api/v1/topics/{tid}/posts?limit=101` | 主题回复 limit 超过上限(应为 100) | 公开 | ⚠️ 400 | 468ms | - | VALIDATION_FAILED {"limit": ["Too big: expected number to be <=100"]} |
+| `GET /api/v1/files?limit=101` | 文件 limit 超过上限(应为 100) | 需登录 | ⚠️ 400 | 145ms | - | VALIDATION_FAILED {"limit": ["Too big: expected number to be <=100"]} |
+| `GET /api/v1/users/{uid}/works?limit=51` | 用户作品 limit 超过上限(应为 50) | 公开 | ⚠️ 400 | 134ms | - | VALIDATION_FAILED {"limit": ["Too big: expected number to be <=50"]} |
+| `GET /api/v1/topics?limit=5&sort=bogus` | topics feed sort 非法(应泄露 relevance|latest) | 公开 | ⚠️ 400 | 144ms | - | VALIDATION_FAILED {"sort": ["Invalid option: expected one of \"relevance\"|\"latest\""]} |
+| `GET /api/v1/topics?limit=5&sort=relevance` | topics sort=relevance(浏览模式应被拒) | 公开 | ⚠️ 400 | 111ms | - | VALIDATION_FAILED {"sort": ["浏览模式不能按相关性排序"]} |
+| `GET /api/v1/works/{wid}/comments?sort=bogus` | 作品评论 sort 非法(应泄露 hot|latest|earliest) | 公开 | ⚠️ 400 | 162ms | - | VALIDATION_FAILED {"sort": ["Invalid option: expected one of \"hot\"|\"latest\"|\"earliest\""]} |
+| `GET /api/v1/emoji-collections?limit=5` | 表情包集带 limit(该端点无此参数) | 公开 | ⚠️ 400 | 88ms | - | VALIDATION_FAILED |
+| `GET /api/v1/emojis?collectionId={cid}&limit=5` | 表情包带 limit(该端点无此参数) | 公开 | ⚠️ 400 | 122ms | - | VALIDATION_FAILED |
+| `GET /api/v1/badges?limit=1` | 徽章带 limit(该端点接受但不生效) | 公开 | ✅ 200 | 159ms | 8 |  |
+| `GET /api/v1/topics/00000000-0000-0000-0000-000000000000` | 主题不存在(应 404 TOPIC_NOT_FOUND) | 不存在 | ❌ 404 | 137ms | - | TOPIC_NOT_FOUND |
+| `GET /api/v1/users/00000000-0000-0000-0000-000000000000` | 用户不存在(应 404 USER_NOT_FOUND) | 不存在 | ❌ 404 | 111ms | - | USER_NOT_FOUND |
+| `GET /api/v1/works/00000000-0000-0000-0000-000000000000` | 作品不存在(应 404 COMMUNITY_WORK_NOT_FOUND) | 不存在 | ❌ 404 | 113ms | - | COMMUNITY_WORK_NOT_FOUND |
+| `GET /api/v1/emoji-collections/00000000-0000-0000-0000-000000000000` | 表情包集不存在(应 404 EMOJI_COLLECTION_NOT_FOUND) | 不存在 | ❌ 404 | 112ms | - | EMOJI_COLLECTION_NOT_FOUND |
+| `GET /api/v1/posts/00000000-0000-0000-0000-000000000000` | 回复不存在(应 404 POST_NOT_FOUND, 需登录) | 需登录 | ❌ 404 | 128ms | - | POST_NOT_FOUND |
+| `GET /api/v1/works/{fw}/comments/9999` | 作品评论不存在(应 404 WORK_COMMENT_NOT_FOUND, 需登录) | 需登录 | ❌ 404 | 136ms | - | WORK_COMMENT_NOT_FOUND |
 
 ## 响应结构 (实测字段指纹)
 
@@ -92,7 +98,7 @@ pageInfo.nextCursor:str
 pageInfo:object
 ```
 
-列表项形态 (2 种, 数据形态数与内容无关):
+列表项形态 (1 种):
 
 形态 1:
 
@@ -115,93 +121,6 @@ pinnedAt:null
 pinnedGlobally:bool
 pinnedTagId:null
 pinnedUntil:null
-questionState:object
-questionState.resolution:null
-replyCount:int
-tags:array
-title:str
-viewCount:int
-```
-
-形态 2:
-
-```
-author:object
-author.avatar:object
-author.id:str
-author.username:str
-bookmarkCount:int
-closedAt:null
-createdAt:str
-editedAt:null
-excerpt:str
-id:str
-kind:str
-lastActivityAt:str
-likeCount:int
-pinned:bool
-pinnedAt:null
-pinnedGlobally:bool
-pinnedTagId:null
-pinnedUntil:null
-replyCount:int
-tags:array
-title:str
-viewCount:int
-```
-
-按 `kind` 分组 (2 组, 每组字段是该类项**一定有**的字段):
-
-组 `DISCUSSION`:
-
-```
-author:object
-author.avatar:object
-author.id:str
-author.username:str
-bookmarkCount:int
-closedAt:null
-createdAt:str
-editedAt:null
-excerpt:str
-id:str
-kind:str
-lastActivityAt:str
-likeCount:int
-pinned:bool
-pinnedAt:str
-pinnedGlobally:bool
-pinnedTagId:null
-pinnedUntil:null
-replyCount:int
-tags:array
-title:str
-viewCount:int
-```
-
-组 `QUESTION`:
-
-```
-author:object
-author.avatar:object
-author.id:str
-author.username:str
-bookmarkCount:int
-closedAt:null
-createdAt:str
-editedAt:null
-excerpt:str
-id:str
-kind:str
-lastActivityAt:str
-likeCount:int
-pinned:bool
-pinnedAt:null
-pinnedGlobally:bool
-pinnedTagId:null
-pinnedUntil:null
-questionState:object
-questionState.resolution:null
 replyCount:int
 tags:array
 title:str
@@ -466,18 +385,19 @@ pageInfo.nextCursor:str
 pageInfo:object
 ```
 
-列表项形态 (3 种, 数据形态数与内容无关):
+列表项形态 (4 种, 数据形态数与内容无关):
 
 形态 1:
 
 ```
 createdAt:str
 details:object
+details.actionType:str
 details.actor:object
-details.event:object
-details.topic:object
+details.managementActionId:str
+details.target:object
 id:str
-readAt:null
+readAt:str
 type:str
 ```
 
@@ -487,11 +407,10 @@ type:str
 createdAt:str
 details:object
 details.actor:object
-details.excerpt:str
-details.post:object
+details.event:object
 details.topic:object
 id:str
-readAt:null
+readAt:str
 type:str
 ```
 
@@ -504,11 +423,37 @@ details.actor:object
 details.post:object
 details.topic:object
 id:str
-readAt:null
+readAt:str
 type:str
 ```
 
-按 `type` 分组 (4 组, 每组字段是该类项**一定有**的字段):
+形态 4:
+
+```
+createdAt:str
+details:object
+details.actor:object
+details.userFollowId:str
+id:str
+readAt:str
+type:str
+```
+
+按 `type` 分组 (5 组, 每组字段是该类项**一定有**的字段):
+
+组 `MANAGEMENT_ACTION`:
+
+```
+createdAt:str
+details:object
+details.actionType:str
+details.actor:object
+details.managementActionId:str
+details.target:object
+id:str
+readAt:str
+type:str
+```
 
 组 `POST_LIKED`:
 
@@ -519,7 +464,7 @@ details.actor:object
 details.post:object
 details.topic:object
 id:str
-readAt:null
+readAt:str
 type:str
 ```
 
@@ -532,7 +477,7 @@ details.actor:object
 details.post:object
 details.topic:object
 id:str
-readAt:null
+readAt:str
 type:str
 ```
 
@@ -549,17 +494,15 @@ readAt:str
 type:str
 ```
 
-组 `USER_MENTIONED`:
+组 `USER_FOLLOWED`:
 
 ```
 createdAt:str
 details:object
 details.actor:object
-details.excerpt:str
-details.post:object
-details.topic:object
+details.userFollowId:str
 id:str
-readAt:null
+readAt:str
 type:str
 ```
 
@@ -577,98 +520,6 @@ pageInfo:object
 列表项形态 (1 种):
 
 形态 1:
-
-```
-author:object
-author.avatar:object
-author.id:str
-author.username:str
-coinCount:int
-commentCount:int
-createdAt:str
-description:str
-favoriteCount:int
-forkEnable:bool
-id:str
-isForked:bool
-lastSyncedAt:str
-likeCount:int
-operation:str
-parentUuid:null
-preview:str
-published:bool
-screenshotCoverUrl:str
-sourceUserId:str
-sourceWorkId:str
-type:str
-updatedAt:str
-viewCount:int
-workName:str
-```
-
-按 `type` 分组 (3 组, 每组字段是该类项**一定有**的字段):
-
-组 `KITTEN3`:
-
-```
-author:object
-author.avatar:object
-author.id:str
-author.username:str
-coinCount:int
-commentCount:int
-createdAt:str
-description:str
-favoriteCount:int
-forkEnable:bool
-id:str
-isForked:bool
-lastSyncedAt:str
-likeCount:int
-operation:str
-parentUuid:null
-preview:str
-published:bool
-screenshotCoverUrl:str
-sourceUserId:str
-sourceWorkId:str
-type:str
-updatedAt:str
-viewCount:int
-workName:str
-```
-
-组 `KITTEN4`:
-
-```
-author:object
-author.avatar:object
-author.id:str
-author.username:str
-coinCount:int
-commentCount:int
-createdAt:str
-description:str
-favoriteCount:int
-forkEnable:bool
-id:str
-isForked:bool
-lastSyncedAt:str
-likeCount:int
-operation:str
-parentUuid:null
-preview:str
-published:bool
-screenshotCoverUrl:str
-sourceUserId:str
-sourceWorkId:str
-type:str
-updatedAt:str
-viewCount:int
-workName:str
-```
-
-组 `NEKO`:
 
 ```
 author:object
@@ -783,12 +634,15 @@ version:str
 ```
 createdAt:str
 expiresAt:str
-silence:null
+silence.publicReasonDetail:str
+silence.until:str
+silence:object
 user.avatar:object
 user.createdAt:str
 user.effectivePermissions:array
 user.id:str
 user.level:object
+user.silence:object
 user.tokenBalance:int
 user.username:str
 user:object
@@ -878,18 +732,22 @@ pageInfo.nextCursor:str
 pageInfo:object
 ```
 
-列表项形态 (4 种, 数据形态数与内容无关):
+列表项形态 (7 种, 数据形态数与内容无关):
 
 形态 1:
 
 ```
 createdAt:str
 details:object
+details.actionType:str
 details.actor:object
-details.event:object
-details.topic:object
+details.managementActionId:str
+details.penaltyUntil:str
+details.publicReasonDetail:str
+details.snapshot:object
+details.target:object
 id:str
-readAt:null
+readAt:str
 type:str
 ```
 
@@ -898,12 +756,13 @@ type:str
 ```
 createdAt:str
 details:object
+details.actionType:str
 details.actor:object
-details.excerpt:str
-details.post:object
-details.topic:object
+details.managementActionId:str
+details.publicReasonDetail:str
+details.target:object
 id:str
-readAt:null
+readAt:str
 type:str
 ```
 
@@ -912,11 +771,12 @@ type:str
 ```
 createdAt:str
 details:object
+details.actionType:str
 details.actor:object
-details.post:object
-details.topic:object
+details.managementActionId:str
+details.target:object
 id:str
-readAt:null
+readAt:str
 type:str
 ```
 
@@ -926,13 +786,67 @@ type:str
 createdAt:str
 details:object
 details.actor:object
-details.userFollowId:str
+details.event:object
+details.topic:object
 id:str
-readAt:null
+readAt:str
 type:str
 ```
 
-按 `type` 分组 (5 组, 每组字段是该类项**一定有**的字段):
+形态 5:
+
+```
+createdAt:str
+details:object
+details.actor:object
+details.excerpt:str
+details.post:object
+details.topic:object
+id:str
+readAt:str
+type:str
+```
+
+形态 6:
+
+```
+createdAt:str
+details:object
+details.actor:object
+details.post:object
+details.topic:object
+id:str
+readAt:str
+type:str
+```
+
+形态 7:
+
+```
+createdAt:str
+details:object
+details.actor:object
+details.userFollowId:str
+id:str
+readAt:str
+type:str
+```
+
+按 `type` 分组 (6 组, 每组字段是该类项**一定有**的字段):
+
+组 `MANAGEMENT_ACTION`:
+
+```
+createdAt:str
+details:object
+details.actionType:str
+details.actor:object
+details.managementActionId:str
+details.target:object
+id:str
+readAt:str
+type:str
+```
 
 组 `POST_LIKED`:
 
@@ -943,7 +857,7 @@ details.actor:object
 details.post:object
 details.topic:object
 id:str
-readAt:null
+readAt:str
 type:str
 ```
 
@@ -956,7 +870,7 @@ details.actor:object
 details.post:object
 details.topic:object
 id:str
-readAt:null
+readAt:str
 type:str
 ```
 
@@ -995,7 +909,7 @@ details.excerpt:str
 details.post:object
 details.topic:object
 id:str
-readAt:null
+readAt:str
 type:str
 ```
 
@@ -1010,7 +924,7 @@ pageInfo.nextCursor:str
 pageInfo:object
 ```
 
-列表项形态 (2 种, 数据形态数与内容无关):
+列表项形态 (1 种):
 
 形态 1:
 
@@ -1033,93 +947,6 @@ pinnedAt:null
 pinnedGlobally:bool
 pinnedTagId:null
 pinnedUntil:null
-questionState:object
-questionState.resolution:null
-replyCount:int
-tags:array
-title:str
-viewCount:int
-```
-
-形态 2:
-
-```
-author:object
-author.avatar:object
-author.id:str
-author.username:str
-bookmarkCount:int
-closedAt:null
-createdAt:str
-editedAt:null
-excerpt:str
-id:str
-kind:str
-lastActivityAt:str
-likeCount:int
-pinned:bool
-pinnedAt:null
-pinnedGlobally:bool
-pinnedTagId:null
-pinnedUntil:null
-replyCount:int
-tags:array
-title:str
-viewCount:int
-```
-
-按 `kind` 分组 (2 组, 每组字段是该类项**一定有**的字段):
-
-组 `DISCUSSION`:
-
-```
-author:object
-author.avatar:object
-author.id:str
-author.username:str
-bookmarkCount:int
-closedAt:null
-createdAt:str
-editedAt:null
-excerpt:str
-id:str
-kind:str
-lastActivityAt:str
-likeCount:int
-pinned:bool
-pinnedAt:str
-pinnedGlobally:bool
-pinnedTagId:null
-pinnedUntil:null
-replyCount:int
-tags:array
-title:str
-viewCount:int
-```
-
-组 `QUESTION`:
-
-```
-author:object
-author.avatar:object
-author.id:str
-author.username:str
-bookmarkCount:int
-closedAt:null
-createdAt:str
-editedAt:null
-excerpt:str
-id:str
-kind:str
-lastActivityAt:str
-likeCount:int
-pinned:bool
-pinnedAt:null
-pinnedGlobally:bool
-pinnedTagId:null
-pinnedUntil:null
-questionState:object
-questionState.resolution:null
 replyCount:int
 tags:array
 title:str
@@ -1183,7 +1010,7 @@ isForked:bool
 lastSyncedAt:str
 likeCount:int
 operation:str
-parentUuid:null
+parentUuid:str
 preview:str
 published:bool
 screenshotCoverUrl:str

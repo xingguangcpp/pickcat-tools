@@ -1,14 +1,14 @@
 {
-  "generatedAt": "2026-11-03 22:16:38",
+  "generatedAt": "2026-11-04 21:26:06",
   "serviceUp": true,
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "probes": {
     "GET /api/v1/topics?limit=5": {
       "label": "社区帖子 feed",
       "path": "/api/v1/topics?limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 84,
+      "latencyMs": 198,
       "keys": [
         "items",
         "pageInfo"
@@ -42,39 +42,13 @@
           "pinnedGlobally",
           "pinnedTagId",
           "pinnedUntil",
-          "questionState",
-          "questionState.resolution",
-          "replyCount",
-          "tags",
-          "title",
-          "viewCount"
-        ],
-        [
-          "author",
-          "author.avatar",
-          "author.id",
-          "author.username",
-          "bookmarkCount",
-          "closedAt",
-          "createdAt",
-          "editedAt",
-          "excerpt",
-          "id",
-          "kind",
-          "lastActivityAt",
-          "likeCount",
-          "pinned",
-          "pinnedAt",
-          "pinnedGlobally",
-          "pinnedTagId",
-          "pinnedUntil",
           "replyCount",
           "tags",
           "title",
           "viewCount"
         ]
       ],
-      "itemVariants": 2,
+      "itemVariants": 1,
       "itemTypes": {
         "author.avatar": "object",
         "author.id": "str",
@@ -97,9 +71,7 @@
         "replyCount": "int",
         "tags": "array",
         "title": "str",
-        "viewCount": "int",
-        "questionState.resolution": "null",
-        "questionState": "object"
+        "viewCount": "int"
       },
       "itemGroups": {
         "discriminator": "kind",
@@ -168,90 +140,10 @@
               "lastActivityAt": "str",
               "likeCount": "int",
               "pinned": "bool",
-              "pinnedAt": "str",
-              "pinnedGlobally": "bool",
-              "pinnedTagId": "null",
-              "pinnedUntil": "null",
-              "replyCount": "int",
-              "tags": "array",
-              "title": "str",
-              "viewCount": "int"
-            }
-          },
-          "QUESTION": {
-            "fields": [
-              "author",
-              "author.avatar",
-              "author.id",
-              "author.username",
-              "bookmarkCount",
-              "closedAt",
-              "createdAt",
-              "editedAt",
-              "excerpt",
-              "id",
-              "kind",
-              "lastActivityAt",
-              "likeCount",
-              "pinned",
-              "pinnedAt",
-              "pinnedGlobally",
-              "pinnedTagId",
-              "pinnedUntil",
-              "questionState",
-              "questionState.resolution",
-              "replyCount",
-              "tags",
-              "title",
-              "viewCount"
-            ],
-            "may": [
-              "author",
-              "author.avatar",
-              "author.id",
-              "author.username",
-              "bookmarkCount",
-              "closedAt",
-              "createdAt",
-              "editedAt",
-              "excerpt",
-              "id",
-              "kind",
-              "lastActivityAt",
-              "likeCount",
-              "pinned",
-              "pinnedAt",
-              "pinnedGlobally",
-              "pinnedTagId",
-              "pinnedUntil",
-              "questionState",
-              "questionState.resolution",
-              "replyCount",
-              "tags",
-              "title",
-              "viewCount"
-            ],
-            "types": {
-              "author.avatar": "object",
-              "author.id": "str",
-              "author.username": "str",
-              "author": "object",
-              "bookmarkCount": "int",
-              "closedAt": "null",
-              "createdAt": "str",
-              "editedAt": "null",
-              "excerpt": "str",
-              "id": "str",
-              "kind": "str",
-              "lastActivityAt": "str",
-              "likeCount": "int",
-              "pinned": "bool",
               "pinnedAt": "null",
               "pinnedGlobally": "bool",
               "pinnedTagId": "null",
               "pinnedUntil": "null",
-              "questionState.resolution": "null",
-              "questionState": "object",
               "replyCount": "int",
               "tags": "array",
               "title": "str",
@@ -259,6 +151,11 @@
             }
           }
         }
+      },
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
       }
     },
     "GET /api/v1/topics/{tid}": {
@@ -266,7 +163,7 @@
       "path": "/api/v1/topics/01a195a5-b39d-7709-ad7b-0494928c6dd3",
       "public": true,
       "status": 200,
-      "latencyMs": 121,
+      "latencyMs": 217,
       "keys": [
         "author",
         "closedAt",
@@ -357,14 +254,19 @@
         "viewerCapabilities:object",
         "viewerState.bookmarkId:null",
         "viewerState:object"
-      ]
+      ],
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/topics/{tid}/posts?limit=5": {
       "label": "主题下的回复",
       "path": "/api/v1/topics/01a195a5-b39d-7709-ad7b-0494928c6dd3/posts?limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 84,
+      "latencyMs": 160,
       "keys": [
         "items",
         "pageInfo"
@@ -377,14 +279,19 @@
         "pageInfo.hasNextPage:bool",
         "pageInfo.nextCursor:null",
         "pageInfo:object"
-      ]
+      ],
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/topics/{tid}/posts?limit=5&sort=latest": {
       "label": "主题回复(按最新排序)",
       "path": "/api/v1/topics/01a195a5-b39d-7709-ad7b-0494928c6dd3/posts?limit=5&sort=latest",
       "public": true,
       "status": 200,
-      "latencyMs": 114,
+      "latencyMs": 212,
       "keys": [
         "items",
         "pageInfo"
@@ -397,14 +304,19 @@
         "pageInfo.hasNextPage:bool",
         "pageInfo.nextCursor:null",
         "pageInfo:object"
-      ]
+      ],
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/posts/{pid}": {
       "label": "单条回复详情",
       "path": "/api/v1/posts/01a1972c-0bef-7aa6-858c-d5938427dae4",
       "public": false,
       "status": 200,
-      "latencyMs": 109,
+      "latencyMs": 153,
       "keys": [
         "canEdit",
         "contentRole",
@@ -437,14 +349,19 @@
         "request.topicId:str",
         "request:object",
         "topicId:str"
-      ]
+      ],
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/tags": {
       "label": "标签列表",
       "path": "/api/v1/tags",
       "public": true,
       "status": 200,
-      "latencyMs": 109,
+      "latencyMs": 155,
       "keys": [
         "items"
       ],
@@ -492,6 +409,11 @@
             }
           }
         }
+      },
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
       }
     },
     "GET /api/v1/tags?limit=20": {
@@ -499,15 +421,26 @@
       "path": "/api/v1/tags?limit=20",
       "public": true,
       "status": 400,
-      "latencyMs": 65,
-      "code": "VALIDATION_FAILED"
+      "latencyMs": 144,
+      "code": "VALIDATION_FAILED",
+      "errKeys": [
+        "code",
+        "details",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/users/{uid}": {
       "label": "用户资料(含等级/统计)",
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813",
       "public": true,
       "status": 200,
-      "latencyMs": 153,
+      "latencyMs": 220,
       "keys": [
         "avatar",
         "backgroundFileId",
@@ -551,14 +484,19 @@
         "viewerState.followedBy:bool",
         "viewerState.following:bool",
         "viewerState:object"
-      ]
+      ],
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/post-submissions?contentRole=TOPIC_REPLY&status=PENDING": {
       "label": "投稿列表(需 contentRole+status)",
       "path": "/api/v1/post-submissions?contentRole=TOPIC_REPLY&status=PENDING",
       "public": false,
       "status": 200,
-      "latencyMs": 76,
+      "latencyMs": 118,
       "keys": [
         "items",
         "pageInfo"
@@ -571,14 +509,19 @@
         "pageInfo.hasNextPage:bool",
         "pageInfo.nextCursor:null",
         "pageInfo:object"
-      ]
+      ],
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/users/{uid}/posts?role=reply&limit=5": {
       "label": "用户回复(role=reply)",
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/posts?role=reply&limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 88,
+      "latencyMs": 126,
       "keys": [
         "items",
         "pageInfo"
@@ -666,6 +609,11 @@
             }
           }
         }
+      },
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
       }
     },
     "GET /api/v1/users/{uid}/posts?role=bogus": {
@@ -673,16 +621,27 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/posts?role=bogus",
       "public": true,
       "status": 400,
-      "latencyMs": 105,
+      "latencyMs": 126,
       "code": "VALIDATION_FAILED",
-      "details": "{\"role\": [\"Invalid input: expected \\\"reply\\\"\"]}"
+      "errKeys": [
+        "code",
+        "details",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "details": "{\"role\": [\"Invalid input: expected \\\"reply\\\"\"]}",
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/users/{uid}/followers?limit=5": {
       "label": "粉丝列表",
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/followers?limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 125,
+      "latencyMs": 267,
       "keys": [
         "items",
         "pageInfo"
@@ -740,6 +699,11 @@
             }
           }
         }
+      },
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
       }
     },
     "GET /api/v1/users/{uid}/following?limit=5": {
@@ -747,7 +711,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/following?limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 110,
+      "latencyMs": 153,
       "keys": [
         "items",
         "pageInfo"
@@ -805,6 +769,11 @@
             }
           }
         }
+      },
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
       }
     },
     "GET /api/v1/notifications?limit=10": {
@@ -812,7 +781,7 @@
       "path": "/api/v1/notifications?limit=10",
       "public": false,
       "status": 200,
-      "latencyMs": 105,
+      "latencyMs": 202,
       "keys": [
         "items",
         "pageInfo"
@@ -830,6 +799,17 @@
         [
           "createdAt",
           "details",
+          "details.actionType",
+          "details.actor",
+          "details.managementActionId",
+          "details.target",
+          "id",
+          "readAt",
+          "type"
+        ],
+        [
+          "createdAt",
+          "details",
           "details.actor",
           "details.event",
           "details.topic",
@@ -841,7 +821,6 @@
           "createdAt",
           "details",
           "details.actor",
-          "details.excerpt",
           "details.post",
           "details.topic",
           "id",
@@ -852,36 +831,37 @@
           "createdAt",
           "details",
           "details.actor",
-          "details.post",
-          "details.topic",
+          "details.userFollowId",
           "id",
           "readAt",
           "type"
         ]
       ],
-      "itemVariants": 3,
+      "itemVariants": 4,
       "itemTypes": {
         "createdAt": "str",
         "details.actor": "object",
-        "details.post": "object",
-        "details.topic": "object",
+        "details.userFollowId": "str",
         "details": "object",
         "id": "str",
-        "readAt": "null",
+        "readAt": "str",
         "type": "str",
-        "details.excerpt": "str",
-        "details.event": "object"
+        "details.post": "object",
+        "details.topic": "object",
+        "details.event": "object",
+        "details.actionType": "str",
+        "details.managementActionId": "str",
+        "details.target": "object"
       },
       "itemGroups": {
         "discriminator": "type",
         "groups": {
-          "REPLY_CREATED": {
+          "USER_FOLLOWED": {
             "fields": [
               "createdAt",
               "details",
               "details.actor",
-              "details.post",
-              "details.topic",
+              "details.userFollowId",
               "id",
               "readAt",
               "type"
@@ -890,8 +870,7 @@
               "createdAt",
               "details",
               "details.actor",
-              "details.post",
-              "details.topic",
+              "details.userFollowId",
               "id",
               "readAt",
               "type"
@@ -899,11 +878,10 @@
             "types": {
               "createdAt": "str",
               "details.actor": "object",
-              "details.post": "object",
-              "details.topic": "object",
+              "details.userFollowId": "str",
               "details": "object",
               "id": "str",
-              "readAt": "null",
+              "readAt": "str",
               "type": "str"
             }
           },
@@ -935,16 +913,15 @@
               "details.topic": "object",
               "details": "object",
               "id": "str",
-              "readAt": "null",
+              "readAt": "str",
               "type": "str"
             }
           },
-          "USER_MENTIONED": {
+          "REPLY_CREATED": {
             "fields": [
               "createdAt",
               "details",
               "details.actor",
-              "details.excerpt",
               "details.post",
               "details.topic",
               "id",
@@ -955,7 +932,6 @@
               "createdAt",
               "details",
               "details.actor",
-              "details.excerpt",
               "details.post",
               "details.topic",
               "id",
@@ -965,12 +941,11 @@
             "types": {
               "createdAt": "str",
               "details.actor": "object",
-              "details.excerpt": "str",
               "details.post": "object",
               "details.topic": "object",
               "details": "object",
               "id": "str",
-              "readAt": "null",
+              "readAt": "str",
               "type": "str"
             }
           },
@@ -1005,8 +980,48 @@
               "readAt": "str",
               "type": "str"
             }
+          },
+          "MANAGEMENT_ACTION": {
+            "fields": [
+              "createdAt",
+              "details",
+              "details.actionType",
+              "details.actor",
+              "details.managementActionId",
+              "details.target",
+              "id",
+              "readAt",
+              "type"
+            ],
+            "may": [
+              "createdAt",
+              "details",
+              "details.actionType",
+              "details.actor",
+              "details.managementActionId",
+              "details.target",
+              "id",
+              "readAt",
+              "type"
+            ],
+            "types": {
+              "createdAt": "str",
+              "details.actionType": "str",
+              "details.actor": "object",
+              "details.managementActionId": "str",
+              "details.target": "object",
+              "details": "object",
+              "id": "str",
+              "readAt": "str",
+              "type": "str"
+            }
           }
         }
+      },
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
       }
     },
     "GET /api/v1/works?limit=5": {
@@ -1014,7 +1029,7 @@
       "path": "/api/v1/works?limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 104,
+      "latencyMs": 184,
       "keys": [
         "items",
         "pageInfo"
@@ -1170,174 +1185,13 @@
               "viewCount": "int",
               "workName": "str"
             }
-          },
-          "NEKO": {
-            "fields": [
-              "author",
-              "author.avatar",
-              "author.id",
-              "author.username",
-              "coinCount",
-              "commentCount",
-              "createdAt",
-              "description",
-              "favoriteCount",
-              "forkEnable",
-              "id",
-              "isForked",
-              "lastSyncedAt",
-              "likeCount",
-              "operation",
-              "parentUuid",
-              "preview",
-              "published",
-              "screenshotCoverUrl",
-              "sourceUserId",
-              "sourceWorkId",
-              "type",
-              "updatedAt",
-              "viewCount",
-              "workName"
-            ],
-            "may": [
-              "author",
-              "author.avatar",
-              "author.id",
-              "author.username",
-              "coinCount",
-              "commentCount",
-              "createdAt",
-              "description",
-              "favoriteCount",
-              "forkEnable",
-              "id",
-              "isForked",
-              "lastSyncedAt",
-              "likeCount",
-              "operation",
-              "parentUuid",
-              "preview",
-              "published",
-              "screenshotCoverUrl",
-              "sourceUserId",
-              "sourceWorkId",
-              "type",
-              "updatedAt",
-              "viewCount",
-              "workName"
-            ],
-            "types": {
-              "author.avatar": "object",
-              "author.id": "str",
-              "author.username": "str",
-              "author": "object",
-              "coinCount": "int",
-              "commentCount": "int",
-              "createdAt": "str",
-              "description": "str",
-              "favoriteCount": "int",
-              "forkEnable": "bool",
-              "id": "str",
-              "isForked": "bool",
-              "lastSyncedAt": "str",
-              "likeCount": "int",
-              "operation": "str",
-              "parentUuid": "null",
-              "preview": "str",
-              "published": "bool",
-              "screenshotCoverUrl": "str",
-              "sourceUserId": "str",
-              "sourceWorkId": "str",
-              "type": "str",
-              "updatedAt": "str",
-              "viewCount": "int",
-              "workName": "str"
-            }
-          },
-          "KITTEN3": {
-            "fields": [
-              "author",
-              "author.avatar",
-              "author.id",
-              "author.username",
-              "coinCount",
-              "commentCount",
-              "createdAt",
-              "description",
-              "favoriteCount",
-              "forkEnable",
-              "id",
-              "isForked",
-              "lastSyncedAt",
-              "likeCount",
-              "operation",
-              "parentUuid",
-              "preview",
-              "published",
-              "screenshotCoverUrl",
-              "sourceUserId",
-              "sourceWorkId",
-              "type",
-              "updatedAt",
-              "viewCount",
-              "workName"
-            ],
-            "may": [
-              "author",
-              "author.avatar",
-              "author.id",
-              "author.username",
-              "coinCount",
-              "commentCount",
-              "createdAt",
-              "description",
-              "favoriteCount",
-              "forkEnable",
-              "id",
-              "isForked",
-              "lastSyncedAt",
-              "likeCount",
-              "operation",
-              "parentUuid",
-              "preview",
-              "published",
-              "screenshotCoverUrl",
-              "sourceUserId",
-              "sourceWorkId",
-              "type",
-              "updatedAt",
-              "viewCount",
-              "workName"
-            ],
-            "types": {
-              "author.avatar": "object",
-              "author.id": "str",
-              "author.username": "str",
-              "author": "object",
-              "coinCount": "int",
-              "commentCount": "int",
-              "createdAt": "str",
-              "description": "str",
-              "favoriteCount": "int",
-              "forkEnable": "bool",
-              "id": "str",
-              "isForked": "bool",
-              "lastSyncedAt": "str",
-              "likeCount": "int",
-              "operation": "str",
-              "parentUuid": "null",
-              "preview": "str",
-              "published": "bool",
-              "screenshotCoverUrl": "str",
-              "sourceUserId": "str",
-              "sourceWorkId": "str",
-              "type": "str",
-              "updatedAt": "str",
-              "viewCount": "int",
-              "workName": "str"
-            }
           }
         }
+      },
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
       }
     },
     "GET /api/v1/badges": {
@@ -1345,7 +1199,7 @@
       "path": "/api/v1/badges",
       "public": true,
       "status": 200,
-      "latencyMs": 125,
+      "latencyMs": 276,
       "keys": [
         "items"
       ],
@@ -1428,6 +1282,11 @@
             }
           }
         }
+      },
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
       }
     },
     "GET /api/v1/emoji-collections": {
@@ -1435,7 +1294,7 @@
       "path": "/api/v1/emoji-collections",
       "public": true,
       "status": 200,
-      "latencyMs": 100,
+      "latencyMs": 181,
       "keys": [
         "items",
         "page",
@@ -1504,6 +1363,11 @@
             }
           }
         }
+      },
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
       }
     },
     "GET /api/v1/emojis?collectionId={cid}": {
@@ -1511,7 +1375,7 @@
       "path": "/api/v1/emojis?collectionId=01a0e06b-7980-779b-8be6-e426048ed516",
       "public": true,
       "status": 200,
-      "latencyMs": 100,
+      "latencyMs": 128,
       "keys": [
         "items",
         "page",
@@ -1590,6 +1454,11 @@
             }
           }
         }
+      },
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
       }
     },
     "GET /api/v1/session": {
@@ -1597,7 +1466,7 @@
       "path": "/api/v1/session",
       "public": false,
       "status": 200,
-      "latencyMs": 115,
+      "latencyMs": 274,
       "keys": [
         "createdAt",
         "expiresAt",
@@ -1609,23 +1478,31 @@
       "fields": [
         "createdAt:str",
         "expiresAt:str",
-        "silence:null",
+        "silence.publicReasonDetail:str",
+        "silence.until:str",
+        "silence:object",
         "user.avatar:object",
         "user.createdAt:str",
         "user.effectivePermissions:array",
         "user.id:str",
         "user.level:object",
+        "user.silence:object",
         "user.tokenBalance:int",
         "user.username:str",
         "user:object"
-      ]
+      ],
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/users/{uid}/topics?limit=5": {
       "label": "我自己的主题(需登录)",
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/topics?limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 108,
+      "latencyMs": 175,
       "keys": [
         "items",
         "pageInfo"
@@ -1768,6 +1645,11 @@
             }
           }
         }
+      },
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
       }
     },
     "GET /api/v1/post-submissions/{sid}": {
@@ -1775,7 +1657,7 @@
       "path": "/api/v1/post-submissions/01a1956c-c398-7b35-9ff2-626cd135b1dd",
       "public": false,
       "status": 200,
-      "latencyMs": 127,
+      "latencyMs": 193,
       "keys": [
         "baseRevision",
         "commentNumber",
@@ -1823,64 +1705,130 @@
         "updatedAt:str",
         "workCommentId:null",
         "workId:null"
-      ]
+      ],
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/__probe_nonexistent__": {
       "label": "不存在的端点(应 404)",
       "path": "/api/v1/__probe_nonexistent__",
       "public": true,
       "status": 404,
-      "latencyMs": 71,
-      "code": "ROUTE_NOT_FOUND"
+      "latencyMs": 131,
+      "code": "ROUTE_NOT_FOUND",
+      "errKeys": [
+        "code",
+        "message"
+      ],
+      "errKeysFull": true,
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/posts?limit=5": {
       "label": "posts 列表(已知不可用)",
       "path": "/api/v1/posts?limit=5",
       "public": true,
       "status": 404,
-      "latencyMs": 86,
-      "code": "ROUTE_NOT_FOUND"
+      "latencyMs": 163,
+      "code": "ROUTE_NOT_FOUND",
+      "errKeys": [
+        "code",
+        "message"
+      ],
+      "errKeysFull": true,
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/topics?cursor=abc": {
       "label": "非法 cursor",
       "path": "/api/v1/topics?cursor=abc",
       "public": true,
       "status": 400,
-      "latencyMs": 75,
-      "code": "INVALID_CURSOR"
+      "latencyMs": 177,
+      "code": "INVALID_CURSOR",
+      "errKeys": [
+        "code",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/topics/{tid}/posts?limit=5&sort=bogus": {
       "label": "主题回复 sort 非法(应泄露 sort 枚举)",
       "path": "/api/v1/topics/01a195a5-b39d-7709-ad7b-0494928c6dd3/posts?limit=5&sort=bogus",
       "public": true,
       "status": 400,
-      "latencyMs": 90,
+      "latencyMs": 274,
       "code": "VALIDATION_FAILED",
-      "details": "{\"sort\": [\"Invalid option: expected one of \\\"hot\\\"|\\\"latest\\\"|\\\"earliest\\\"\"]}"
+      "errKeys": [
+        "code",
+        "details",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "details": "{\"sort\": [\"Invalid option: expected one of \\\"hot\\\"|\\\"latest\\\"|\\\"earliest\\\"\"]}",
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/users/{uid}/posts?role=reply&sort=bogus": {
       "label": "用户回复加 sort(该端点无 sort 参数)",
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/posts?role=reply&sort=bogus",
       "public": true,
       "status": 400,
-      "latencyMs": 80,
-      "code": "VALIDATION_FAILED"
+      "latencyMs": 143,
+      "code": "VALIDATION_FAILED",
+      "errKeys": [
+        "code",
+        "details",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/notifications?limit=100": {
       "label": "通知 limit 超过上限(应泄露上限值)",
       "path": "/api/v1/notifications?limit=100",
       "public": true,
       "status": 400,
-      "latencyMs": 94,
+      "latencyMs": 158,
       "code": "VALIDATION_FAILED",
-      "details": "{\"limit\": [\"Too big: expected number to be <=50\"]}"
+      "errKeys": [
+        "code",
+        "details",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "details": "{\"limit\": [\"Too big: expected number to be <=50\"]}",
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/notifications?limit=50": {
       "label": "通知 limit 取上限(应 200)",
       "path": "/api/v1/notifications?limit=50",
       "public": false,
       "status": 200,
-      "latencyMs": 126,
+      "latencyMs": 207,
       "keys": [
         "items",
         "pageInfo"
@@ -1895,6 +1843,43 @@
         "pageInfo:object"
       ],
       "itemShapes": [
+        [
+          "createdAt",
+          "details",
+          "details.actionType",
+          "details.actor",
+          "details.managementActionId",
+          "details.penaltyUntil",
+          "details.publicReasonDetail",
+          "details.snapshot",
+          "details.target",
+          "id",
+          "readAt",
+          "type"
+        ],
+        [
+          "createdAt",
+          "details",
+          "details.actionType",
+          "details.actor",
+          "details.managementActionId",
+          "details.publicReasonDetail",
+          "details.target",
+          "id",
+          "readAt",
+          "type"
+        ],
+        [
+          "createdAt",
+          "details",
+          "details.actionType",
+          "details.actor",
+          "details.managementActionId",
+          "details.target",
+          "id",
+          "readAt",
+          "type"
+        ],
         [
           "createdAt",
           "details",
@@ -1936,30 +1921,35 @@
           "type"
         ]
       ],
-      "itemVariants": 4,
+      "itemVariants": 7,
       "itemTypes": {
         "createdAt": "str",
         "details.actor": "object",
-        "details.post": "object",
-        "details.topic": "object",
+        "details.userFollowId": "str",
         "details": "object",
         "id": "str",
-        "readAt": "null",
+        "readAt": "str",
         "type": "str",
-        "details.excerpt": "str",
+        "details.post": "object",
+        "details.topic": "object",
         "details.event": "object",
-        "details.userFollowId": "str"
+        "details.actionType": "str",
+        "details.managementActionId": "str",
+        "details.target": "object",
+        "details.publicReasonDetail": "str",
+        "details.penaltyUntil": "str",
+        "details.snapshot": "object",
+        "details.excerpt": "str"
       },
       "itemGroups": {
         "discriminator": "type",
         "groups": {
-          "REPLY_CREATED": {
+          "USER_FOLLOWED": {
             "fields": [
               "createdAt",
               "details",
               "details.actor",
-              "details.post",
-              "details.topic",
+              "details.userFollowId",
               "id",
               "readAt",
               "type"
@@ -1968,8 +1958,7 @@
               "createdAt",
               "details",
               "details.actor",
-              "details.post",
-              "details.topic",
+              "details.userFollowId",
               "id",
               "readAt",
               "type"
@@ -1977,11 +1966,10 @@
             "types": {
               "createdAt": "str",
               "details.actor": "object",
-              "details.post": "object",
-              "details.topic": "object",
+              "details.userFollowId": "str",
               "details": "object",
               "id": "str",
-              "readAt": "null",
+              "readAt": "str",
               "type": "str"
             }
           },
@@ -2013,16 +2001,15 @@
               "details.topic": "object",
               "details": "object",
               "id": "str",
-              "readAt": "null",
+              "readAt": "str",
               "type": "str"
             }
           },
-          "USER_MENTIONED": {
+          "REPLY_CREATED": {
             "fields": [
               "createdAt",
               "details",
               "details.actor",
-              "details.excerpt",
               "details.post",
               "details.topic",
               "id",
@@ -2033,7 +2020,6 @@
               "createdAt",
               "details",
               "details.actor",
-              "details.excerpt",
               "details.post",
               "details.topic",
               "id",
@@ -2043,12 +2029,11 @@
             "types": {
               "createdAt": "str",
               "details.actor": "object",
-              "details.excerpt": "str",
               "details.post": "object",
               "details.topic": "object",
               "details": "object",
               "id": "str",
-              "readAt": "null",
+              "readAt": "str",
               "type": "str"
             }
           },
@@ -2084,12 +2069,55 @@
               "type": "str"
             }
           },
-          "USER_FOLLOWED": {
+          "MANAGEMENT_ACTION": {
+            "fields": [
+              "createdAt",
+              "details",
+              "details.actionType",
+              "details.actor",
+              "details.managementActionId",
+              "details.target",
+              "id",
+              "readAt",
+              "type"
+            ],
+            "may": [
+              "createdAt",
+              "details",
+              "details.actionType",
+              "details.actor",
+              "details.managementActionId",
+              "details.penaltyUntil",
+              "details.publicReasonDetail",
+              "details.snapshot",
+              "details.target",
+              "id",
+              "readAt",
+              "type"
+            ],
+            "types": {
+              "createdAt": "str",
+              "details.actionType": "str",
+              "details.actor": "object",
+              "details.managementActionId": "str",
+              "details.target": "object",
+              "details": "object",
+              "id": "str",
+              "readAt": "str",
+              "type": "str",
+              "details.publicReasonDetail": "str",
+              "details.penaltyUntil": "str",
+              "details.snapshot": "object"
+            }
+          },
+          "USER_MENTIONED": {
             "fields": [
               "createdAt",
               "details",
               "details.actor",
-              "details.userFollowId",
+              "details.excerpt",
+              "details.post",
+              "details.topic",
               "id",
               "readAt",
               "type"
@@ -2098,7 +2126,9 @@
               "createdAt",
               "details",
               "details.actor",
-              "details.userFollowId",
+              "details.excerpt",
+              "details.post",
+              "details.topic",
               "id",
               "readAt",
               "type"
@@ -2106,7 +2136,9 @@
             "types": {
               "createdAt": "str",
               "details.actor": "object",
-              "details.userFollowId": "str",
+              "details.excerpt": "str",
+              "details.post": "object",
+              "details.topic": "object",
               "details": "object",
               "id": "str",
               "readAt": "str",
@@ -2114,6 +2146,11 @@
             }
           }
         }
+      },
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
       }
     },
     "GET /api/v1/topics?limit=5&sort=latest": {
@@ -2121,7 +2158,7 @@
       "path": "/api/v1/topics?limit=5&sort=latest",
       "public": true,
       "status": 200,
-      "latencyMs": 91,
+      "latencyMs": 235,
       "keys": [
         "items",
         "pageInfo"
@@ -2155,39 +2192,13 @@
           "pinnedGlobally",
           "pinnedTagId",
           "pinnedUntil",
-          "questionState",
-          "questionState.resolution",
-          "replyCount",
-          "tags",
-          "title",
-          "viewCount"
-        ],
-        [
-          "author",
-          "author.avatar",
-          "author.id",
-          "author.username",
-          "bookmarkCount",
-          "closedAt",
-          "createdAt",
-          "editedAt",
-          "excerpt",
-          "id",
-          "kind",
-          "lastActivityAt",
-          "likeCount",
-          "pinned",
-          "pinnedAt",
-          "pinnedGlobally",
-          "pinnedTagId",
-          "pinnedUntil",
           "replyCount",
           "tags",
           "title",
           "viewCount"
         ]
       ],
-      "itemVariants": 2,
+      "itemVariants": 1,
       "itemTypes": {
         "author.avatar": "object",
         "author.id": "str",
@@ -2210,9 +2221,7 @@
         "replyCount": "int",
         "tags": "array",
         "title": "str",
-        "viewCount": "int",
-        "questionState.resolution": "null",
-        "questionState": "object"
+        "viewCount": "int"
       },
       "itemGroups": {
         "discriminator": "kind",
@@ -2281,90 +2290,10 @@
               "lastActivityAt": "str",
               "likeCount": "int",
               "pinned": "bool",
-              "pinnedAt": "str",
-              "pinnedGlobally": "bool",
-              "pinnedTagId": "null",
-              "pinnedUntil": "null",
-              "replyCount": "int",
-              "tags": "array",
-              "title": "str",
-              "viewCount": "int"
-            }
-          },
-          "QUESTION": {
-            "fields": [
-              "author",
-              "author.avatar",
-              "author.id",
-              "author.username",
-              "bookmarkCount",
-              "closedAt",
-              "createdAt",
-              "editedAt",
-              "excerpt",
-              "id",
-              "kind",
-              "lastActivityAt",
-              "likeCount",
-              "pinned",
-              "pinnedAt",
-              "pinnedGlobally",
-              "pinnedTagId",
-              "pinnedUntil",
-              "questionState",
-              "questionState.resolution",
-              "replyCount",
-              "tags",
-              "title",
-              "viewCount"
-            ],
-            "may": [
-              "author",
-              "author.avatar",
-              "author.id",
-              "author.username",
-              "bookmarkCount",
-              "closedAt",
-              "createdAt",
-              "editedAt",
-              "excerpt",
-              "id",
-              "kind",
-              "lastActivityAt",
-              "likeCount",
-              "pinned",
-              "pinnedAt",
-              "pinnedGlobally",
-              "pinnedTagId",
-              "pinnedUntil",
-              "questionState",
-              "questionState.resolution",
-              "replyCount",
-              "tags",
-              "title",
-              "viewCount"
-            ],
-            "types": {
-              "author.avatar": "object",
-              "author.id": "str",
-              "author.username": "str",
-              "author": "object",
-              "bookmarkCount": "int",
-              "closedAt": "null",
-              "createdAt": "str",
-              "editedAt": "null",
-              "excerpt": "str",
-              "id": "str",
-              "kind": "str",
-              "lastActivityAt": "str",
-              "likeCount": "int",
-              "pinned": "bool",
               "pinnedAt": "null",
               "pinnedGlobally": "bool",
               "pinnedTagId": "null",
               "pinnedUntil": "null",
-              "questionState.resolution": "null",
-              "questionState": "object",
               "replyCount": "int",
               "tags": "array",
               "title": "str",
@@ -2372,6 +2301,11 @@
             }
           }
         }
+      },
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
       }
     },
     "GET /api/v1/users/{uid}/followers?limit=5&cursor=abc": {
@@ -2379,24 +2313,45 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/followers?limit=5&cursor=abc",
       "public": true,
       "status": 400,
-      "latencyMs": 189,
+      "latencyMs": 155,
       "code": "VALIDATION_FAILED",
-      "details": "{\"cursor\": [\"游标不合法\"]}"
+      "errKeys": [
+        "code",
+        "details",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "details": "{\"cursor\": [\"游标不合法\"]}",
+      "headerValues": {
+        "cache-control": "private, no-store",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/emoji-collections/{cid}/emojis": {
       "label": "表情包嵌套路径(已知不可用, 须用 collectionId)",
       "path": "/api/v1/emoji-collections/01a0e06b-7980-779b-8be6-e426048ed516/emojis",
       "public": true,
       "status": 404,
-      "latencyMs": 95,
-      "code": "ROUTE_NOT_FOUND"
+      "latencyMs": 173,
+      "code": "ROUTE_NOT_FOUND",
+      "errKeys": [
+        "code",
+        "message"
+      ],
+      "errKeysFull": true,
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/health": {
       "label": "服务健康检查",
       "path": "/api/v1/health",
       "public": true,
       "status": 200,
-      "latencyMs": 154,
+      "latencyMs": 233,
       "keys": [
         "service",
         "status",
@@ -2408,14 +2363,19 @@
         "service:str",
         "status:str",
         "timestamp:str"
-      ]
+      ],
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/users/{uid}/badges": {
       "label": "用户徽章",
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/badges",
       "public": true,
       "status": 200,
-      "latencyMs": 122,
+      "latencyMs": 213,
       "keys": [
         "items"
       ],
@@ -2503,14 +2463,19 @@
             }
           }
         }
+      },
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
       }
     },
     "GET /api/v1/works/{wid}": {
       "label": "作品详情",
-      "path": "/api/v1/works/01a1a1ba-8e27-7817-acf2-18c78115967c",
+      "path": "/api/v1/works/01a1a6bb-9f00-70f9-9460-fa813869e8ea",
       "public": true,
       "status": 200,
-      "latencyMs": 103,
+      "latencyMs": 252,
       "keys": [
         "author",
         "coinCount",
@@ -2553,7 +2518,7 @@
         "lastSyncedAt:str",
         "likeCount:int",
         "operation:str",
-        "parentUuid:null",
+        "parentUuid:str",
         "preview:str",
         "published:bool",
         "screenshotCoverUrl:str",
@@ -2563,14 +2528,19 @@
         "updatedAt:str",
         "viewCount:int",
         "workName:str"
-      ]
+      ],
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/emoji-collections/{cid}": {
       "label": "表情包集详情",
       "path": "/api/v1/emoji-collections/01a0e06b-7980-779b-8be6-e426048ed516",
       "public": true,
       "status": 200,
-      "latencyMs": 136,
+      "latencyMs": 158,
       "keys": [
         "coverUrl",
         "createdAt",
@@ -2590,6 +2560,15 @@
         "position:int",
         "updatedAt:str",
         "version:str"
+      ],
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      },
+      "headerPresent": [
+        "emoji-etag",
+        "etag"
       ]
     },
     "GET /api/v1/topics?limit=5&kind=bogus": {
@@ -2597,16 +2576,27 @@
       "path": "/api/v1/topics?limit=5&kind=bogus",
       "public": true,
       "status": 400,
-      "latencyMs": 68,
+      "latencyMs": 194,
       "code": "VALIDATION_FAILED",
-      "details": "{\"kind\": [\"Invalid option: expected one of \\\"DISCUSSION\\\"|\\\"QUESTION\\\"\"]}"
+      "errKeys": [
+        "code",
+        "details",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "details": "{\"kind\": [\"Invalid option: expected one of \\\"DISCUSSION\\\"|\\\"QUESTION\\\"\"]}",
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/topics?limit=5&kind=DISCUSSION": {
       "label": "topics kind=DISCUSSION(应 200)",
       "path": "/api/v1/topics?limit=5&kind=DISCUSSION",
       "public": true,
       "status": 200,
-      "latencyMs": 95,
+      "latencyMs": 204,
       "keys": [
         "items",
         "pageInfo"
@@ -2749,6 +2739,11 @@
             }
           }
         }
+      },
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
       }
     },
     "GET /api/v1/works?limit=5&kind=DISCUSSION": {
@@ -2756,32 +2751,66 @@
       "path": "/api/v1/works?limit=5&kind=DISCUSSION",
       "public": true,
       "status": 400,
-      "latencyMs": 95,
-      "code": "VALIDATION_FAILED"
+      "latencyMs": 199,
+      "code": "VALIDATION_FAILED",
+      "errKeys": [
+        "code",
+        "details",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/users/{uid}/topics?limit=5&kind=DISCUSSION": {
       "label": "用户主题不支持 kind(应报错)",
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/topics?limit=5&kind=DISCUSSION",
       "public": true,
       "status": 400,
-      "latencyMs": 81,
-      "code": "VALIDATION_FAILED"
+      "latencyMs": 168,
+      "code": "VALIDATION_FAILED",
+      "errKeys": [
+        "code",
+        "details",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/users/{uid}/followers?limit=abc": {
       "label": "通知 limit 非数字(应报错)",
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/followers?limit=abc",
       "public": true,
       "status": 400,
-      "latencyMs": 94,
+      "latencyMs": 237,
       "code": "VALIDATION_FAILED",
-      "details": "{\"limit\": [\"Invalid input: expected number, received NaN\"]}"
+      "errKeys": [
+        "code",
+        "details",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "details": "{\"limit\": [\"Invalid input: expected number, received NaN\"]}",
+      "headerValues": {
+        "cache-control": "private, no-store",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/files?limit=1": {
       "label": "文件列表(需登录)",
       "path": "/api/v1/files?limit=1",
       "public": false,
       "status": 200,
-      "latencyMs": 116,
+      "latencyMs": 268,
       "keys": [
         "items",
         "pageInfo"
@@ -2829,6 +2858,11 @@
             }
           }
         }
+      },
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
       }
     },
     "GET /api/v1/files/{fid}": {
@@ -2836,7 +2870,7 @@
       "path": "/api/v1/files/01a19c50-e32e-7158-8bfc-a45ca94c96cb",
       "public": true,
       "status": 200,
-      "latencyMs": 147,
+      "latencyMs": 327,
       "keys": [
         "raw"
       ],
@@ -2844,6 +2878,14 @@
       "itemCount": null,
       "fields": [
         "raw:str"
+      ],
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      },
+      "headerPresent": [
+        "etag"
       ]
     },
     "GET /api/v1/files/00000000-0000-0000-0000-000000000000": {
@@ -2851,15 +2893,25 @@
       "path": "/api/v1/files/00000000-0000-0000-0000-000000000000",
       "public": true,
       "status": 404,
-      "latencyMs": 323,
-      "code": "FILE_NOT_FOUND"
+      "latencyMs": 138,
+      "code": "FILE_NOT_FOUND",
+      "errKeys": [
+        "code",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/works/{wid}/comments": {
       "label": "作品评论列表",
-      "path": "/api/v1/works/01a1a1ba-8e27-7817-acf2-18c78115967c/comments",
+      "path": "/api/v1/works/01a1a6bb-9f00-70f9-9460-fa813869e8ea/comments",
       "public": true,
       "status": 200,
-      "latencyMs": 97,
+      "latencyMs": 220,
       "keys": [
         "items",
         "pageInfo"
@@ -2872,31 +2924,58 @@
         "pageInfo.hasNextPage:bool",
         "pageInfo.nextCursor:null",
         "pageInfo:object"
-      ]
+      ],
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/works/{wid}/comments/1": {
       "label": "作品评论(按楼号, 需登录)",
-      "path": "/api/v1/works/01a1a1ba-8e27-7817-acf2-18c78115967c/comments/1",
+      "path": "/api/v1/works/01a1a6bb-9f00-70f9-9460-fa813869e8ea/comments/1",
       "public": false,
       "status": 404,
-      "latencyMs": 71,
-      "code": "WORK_COMMENT_NOT_FOUND"
+      "latencyMs": 132,
+      "code": "WORK_COMMENT_NOT_FOUND",
+      "errKeys": [
+        "code",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "headerValues": {
+        "cache-control": "private, no-store",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/works/{wid}/comments/0": {
       "label": "作品评论楼号非法(应泄露下限)",
-      "path": "/api/v1/works/01a1a1ba-8e27-7817-acf2-18c78115967c/comments/0",
+      "path": "/api/v1/works/01a1a6bb-9f00-70f9-9460-fa813869e8ea/comments/0",
       "public": false,
       "status": 400,
-      "latencyMs": 92,
+      "latencyMs": 156,
       "code": "VALIDATION_FAILED",
-      "details": "{\"commentNumber\": [\"Too small: expected number to be >=1\"]}"
+      "errKeys": [
+        "code",
+        "details",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "details": "{\"commentNumber\": [\"Too small: expected number to be >=1\"]}",
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/users/{uid}/works?limit=1": {
       "label": "用户作品列表",
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/works?limit=1",
       "public": true,
       "status": 200,
-      "latencyMs": 152,
+      "latencyMs": 190,
       "keys": [
         "items",
         "pageInfo"
@@ -3054,6 +3133,11 @@
             }
           }
         }
+      },
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
       }
     },
     "GET /api/v1/badges/{bid}": {
@@ -3061,7 +3145,7 @@
       "path": "/api/v1/badges/badge_bugfinder",
       "public": true,
       "status": 200,
-      "latencyMs": 101,
+      "latencyMs": 214,
       "keys": [
         "description",
         "icon",
@@ -3085,6 +3169,15 @@
         "name:str",
         "slug:str",
         "version:int"
+      ],
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      },
+      "headerPresent": [
+        "badge-etag",
+        "etag"
       ]
     },
     "GET /api/v1/badges/__probe_no_such_badge__": {
@@ -3092,44 +3185,99 @@
       "path": "/api/v1/badges/__probe_no_such_badge__",
       "public": true,
       "status": 404,
-      "latencyMs": 102,
-      "code": "BADGE_NOT_FOUND"
+      "latencyMs": 158,
+      "code": "BADGE_NOT_FOUND",
+      "errKeys": [
+        "code",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/permissions": {
       "label": "权限列表(需 access.manage)",
       "path": "/api/v1/permissions",
       "public": false,
       "status": 403,
-      "latencyMs": 101,
+      "latencyMs": 105,
       "code": "PERMISSION_DENIED",
-      "details": "{\"permissionKey\": \"access.manage\"}"
+      "errKeys": [
+        "code",
+        "details",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "details": "{\"permissionKey\": \"access.manage\"}",
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/users/{uid}/level": {
       "label": "用户等级(需 community.level.manage)",
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/level",
       "public": false,
       "status": 403,
-      "latencyMs": 75,
+      "latencyMs": 201,
       "code": "PERMISSION_DENIED",
-      "details": "{\"permissionKey\": \"community.level.manage\"}"
+      "errKeys": [
+        "code",
+        "details",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "details": "{\"permissionKey\": \"community.level.manage\"}",
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/emojis/{eid}": {
       "label": "表情详情(需 community.emoji.manage)",
       "path": "/api/v1/emojis/gif_expression_aduan_wa",
       "public": false,
       "status": 403,
-      "latencyMs": 104,
+      "latencyMs": 192,
       "code": "PERMISSION_DENIED",
-      "details": "{\"permissionKey\": \"community.emoji.manage\"}"
+      "errKeys": [
+        "code",
+        "details",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "details": "{\"permissionKey\": \"community.emoji.manage\"}",
+      "headerValues": {
+        "cache-control": "no-store",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/topics?limit=51": {
       "label": "topics limit 超过上限(应为 50)",
       "path": "/api/v1/topics?limit=51",
       "public": true,
       "status": 400,
-      "latencyMs": 108,
+      "latencyMs": 126,
       "code": "VALIDATION_FAILED",
-      "details": "{\"limit\": [\"Too big: expected number to be <=50\"]}"
+      "errKeys": [
+        "code",
+        "details",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "details": "{\"limit\": [\"Too big: expected number to be <=50\"]}",
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/works?limit=51": {
       "label": "works limit 超过上限(应为 50)",
@@ -3138,93 +3286,203 @@
       "status": 400,
       "latencyMs": 104,
       "code": "VALIDATION_FAILED",
-      "details": "{\"limit\": [\"Too big: expected number to be <=50\"]}"
+      "errKeys": [
+        "code",
+        "details",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "details": "{\"limit\": [\"Too big: expected number to be <=50\"]}",
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/users/{uid}/posts?role=reply&limit=51": {
       "label": "用户回复 limit 超过上限(应为 50)",
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/posts?role=reply&limit=51",
       "public": true,
       "status": 400,
-      "latencyMs": 83,
+      "latencyMs": 110,
       "code": "VALIDATION_FAILED",
-      "details": "{\"limit\": [\"Too big: expected number to be <=50\"]}"
+      "errKeys": [
+        "code",
+        "details",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "details": "{\"limit\": [\"Too big: expected number to be <=50\"]}",
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/topics/{tid}/posts?limit=101": {
       "label": "主题回复 limit 超过上限(应为 100)",
       "path": "/api/v1/topics/01a195a5-b39d-7709-ad7b-0494928c6dd3/posts?limit=101",
       "public": true,
       "status": 400,
-      "latencyMs": 75,
+      "latencyMs": 468,
       "code": "VALIDATION_FAILED",
-      "details": "{\"limit\": [\"Too big: expected number to be <=100\"]}"
+      "errKeys": [
+        "code",
+        "details",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "details": "{\"limit\": [\"Too big: expected number to be <=100\"]}",
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/files?limit=101": {
       "label": "文件 limit 超过上限(应为 100)",
       "path": "/api/v1/files?limit=101",
       "public": false,
       "status": 400,
-      "latencyMs": 65,
+      "latencyMs": 145,
       "code": "VALIDATION_FAILED",
-      "details": "{\"limit\": [\"Too big: expected number to be <=100\"]}"
+      "errKeys": [
+        "code",
+        "details",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "details": "{\"limit\": [\"Too big: expected number to be <=100\"]}",
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/users/{uid}/works?limit=51": {
       "label": "用户作品 limit 超过上限(应为 50)",
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/works?limit=51",
       "public": true,
       "status": 400,
-      "latencyMs": 94,
+      "latencyMs": 134,
       "code": "VALIDATION_FAILED",
-      "details": "{\"limit\": [\"Too big: expected number to be <=50\"]}"
+      "errKeys": [
+        "code",
+        "details",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "details": "{\"limit\": [\"Too big: expected number to be <=50\"]}",
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/topics?limit=5&sort=bogus": {
       "label": "topics feed sort 非法(应泄露 relevance|latest)",
       "path": "/api/v1/topics?limit=5&sort=bogus",
       "public": true,
       "status": 400,
-      "latencyMs": 92,
+      "latencyMs": 144,
       "code": "VALIDATION_FAILED",
-      "details": "{\"sort\": [\"Invalid option: expected one of \\\"relevance\\\"|\\\"latest\\\"\"]}"
+      "errKeys": [
+        "code",
+        "details",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "details": "{\"sort\": [\"Invalid option: expected one of \\\"relevance\\\"|\\\"latest\\\"\"]}",
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/topics?limit=5&sort=relevance": {
       "label": "topics sort=relevance(浏览模式应被拒)",
       "path": "/api/v1/topics?limit=5&sort=relevance",
       "public": true,
       "status": 400,
-      "latencyMs": 145,
+      "latencyMs": 111,
       "code": "VALIDATION_FAILED",
-      "details": "{\"sort\": [\"浏览模式不能按相关性排序\"]}"
+      "errKeys": [
+        "code",
+        "details",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "details": "{\"sort\": [\"浏览模式不能按相关性排序\"]}",
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/works/{wid}/comments?sort=bogus": {
       "label": "作品评论 sort 非法(应泄露 hot|latest|earliest)",
-      "path": "/api/v1/works/01a1a1ba-8e27-7817-acf2-18c78115967c/comments?sort=bogus",
+      "path": "/api/v1/works/01a1a6bb-9f00-70f9-9460-fa813869e8ea/comments?sort=bogus",
       "public": true,
       "status": 400,
-      "latencyMs": 66,
+      "latencyMs": 162,
       "code": "VALIDATION_FAILED",
-      "details": "{\"sort\": [\"Invalid option: expected one of \\\"hot\\\"|\\\"latest\\\"|\\\"earliest\\\"\"]}"
+      "errKeys": [
+        "code",
+        "details",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "details": "{\"sort\": [\"Invalid option: expected one of \\\"hot\\\"|\\\"latest\\\"|\\\"earliest\\\"\"]}",
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/emoji-collections?limit=5": {
       "label": "表情包集带 limit(该端点无此参数)",
       "path": "/api/v1/emoji-collections?limit=5",
       "public": true,
       "status": 400,
-      "latencyMs": 86,
-      "code": "VALIDATION_FAILED"
+      "latencyMs": 88,
+      "code": "VALIDATION_FAILED",
+      "errKeys": [
+        "code",
+        "details",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/emojis?collectionId={cid}&limit=5": {
       "label": "表情包带 limit(该端点无此参数)",
       "path": "/api/v1/emojis?collectionId=01a0e06b-7980-779b-8be6-e426048ed516&limit=5",
       "public": true,
       "status": 400,
-      "latencyMs": 111,
-      "code": "VALIDATION_FAILED"
+      "latencyMs": 122,
+      "code": "VALIDATION_FAILED",
+      "errKeys": [
+        "code",
+        "details",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
     },
     "GET /api/v1/badges?limit=1": {
       "label": "徽章带 limit(该端点接受但不生效)",
       "path": "/api/v1/badges?limit=1",
       "public": true,
       "status": 200,
-      "latencyMs": 89,
+      "latencyMs": 159,
       "keys": [
         "items"
       ],
@@ -3307,6 +3565,124 @@
             }
           }
         }
+      },
+      "headerValues": {
+        "cache-control": "no-cache",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
+    },
+    "GET /api/v1/topics/00000000-0000-0000-0000-000000000000": {
+      "label": "主题不存在(应 404 TOPIC_NOT_FOUND)",
+      "path": "/api/v1/topics/00000000-0000-0000-0000-000000000000",
+      "public": true,
+      "status": 404,
+      "latencyMs": 137,
+      "code": "TOPIC_NOT_FOUND",
+      "errKeys": [
+        "code",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "headerValues": {
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
+    },
+    "GET /api/v1/users/00000000-0000-0000-0000-000000000000": {
+      "label": "用户不存在(应 404 USER_NOT_FOUND)",
+      "path": "/api/v1/users/00000000-0000-0000-0000-000000000000",
+      "public": true,
+      "status": 404,
+      "latencyMs": 111,
+      "code": "USER_NOT_FOUND",
+      "errKeys": [
+        "code",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "headerValues": {
+        "cache-control": "private, no-store",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
+    },
+    "GET /api/v1/works/00000000-0000-0000-0000-000000000000": {
+      "label": "作品不存在(应 404 COMMUNITY_WORK_NOT_FOUND)",
+      "path": "/api/v1/works/00000000-0000-0000-0000-000000000000",
+      "public": true,
+      "status": 404,
+      "latencyMs": 113,
+      "code": "COMMUNITY_WORK_NOT_FOUND",
+      "errKeys": [
+        "code",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "headerValues": {
+        "cache-control": "no-store",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
+    },
+    "GET /api/v1/emoji-collections/00000000-0000-0000-0000-000000000000": {
+      "label": "表情包集不存在(应 404 EMOJI_COLLECTION_NOT_FOUND)",
+      "path": "/api/v1/emoji-collections/00000000-0000-0000-0000-000000000000",
+      "public": true,
+      "status": 404,
+      "latencyMs": 112,
+      "code": "EMOJI_COLLECTION_NOT_FOUND",
+      "errKeys": [
+        "code",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "headerValues": {
+        "cache-control": "no-store",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
+    },
+    "GET /api/v1/posts/00000000-0000-0000-0000-000000000000": {
+      "label": "回复不存在(应 404 POST_NOT_FOUND, 需登录)",
+      "path": "/api/v1/posts/00000000-0000-0000-0000-000000000000",
+      "public": false,
+      "status": 404,
+      "latencyMs": 128,
+      "code": "POST_NOT_FOUND",
+      "errKeys": [
+        "code",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "headerValues": {
+        "cache-control": "private, no-store",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
+      }
+    },
+    "GET /api/v1/works/{fw}/comments/9999": {
+      "label": "作品评论不存在(应 404 WORK_COMMENT_NOT_FOUND, 需登录)",
+      "path": "/api/v1/works/01a1a210-dbc4-7788-af8f-d500d5ab21fb/comments/9999",
+      "public": false,
+      "status": 404,
+      "latencyMs": 136,
+      "code": "WORK_COMMENT_NOT_FOUND",
+      "errKeys": [
+        "code",
+        "message",
+        "statusCode"
+      ],
+      "errKeysFull": true,
+      "headerValues": {
+        "cache-control": "private, no-store",
+        "vary": "Origin",
+        "access-control-expose-headers": "ETag,Badge-ETag,Emoji-ETag"
       }
     }
   },
@@ -3601,6 +3977,54 @@
     },
     "/api/v1/emojis/{eid}": {
       "label": "表情详情(需 community.emoji.manage)",
+      "anonStatus": 401,
+      "anonCode": "AUTHENTICATION_REQUIRED",
+      "mode": "需登录",
+      "declared": "需登录",
+      "mismatch": false
+    },
+    "/api/v1/topics/00000000-0000-0000-0000-000000000000": {
+      "label": "主题不存在(应 404 TOPIC_NOT_FOUND)",
+      "anonStatus": 404,
+      "anonCode": "TOPIC_NOT_FOUND",
+      "mode": "不存在",
+      "declared": "公开",
+      "mismatch": false
+    },
+    "/api/v1/users/00000000-0000-0000-0000-000000000000": {
+      "label": "用户不存在(应 404 USER_NOT_FOUND)",
+      "anonStatus": 404,
+      "anonCode": "USER_NOT_FOUND",
+      "mode": "不存在",
+      "declared": "公开",
+      "mismatch": false
+    },
+    "/api/v1/works/00000000-0000-0000-0000-000000000000": {
+      "label": "作品不存在(应 404 COMMUNITY_WORK_NOT_FOUND)",
+      "anonStatus": 404,
+      "anonCode": "COMMUNITY_WORK_NOT_FOUND",
+      "mode": "不存在",
+      "declared": "公开",
+      "mismatch": false
+    },
+    "/api/v1/emoji-collections/00000000-0000-0000-0000-000000000000": {
+      "label": "表情包集不存在(应 404 EMOJI_COLLECTION_NOT_FOUND)",
+      "anonStatus": 404,
+      "anonCode": "EMOJI_COLLECTION_NOT_FOUND",
+      "mode": "不存在",
+      "declared": "公开",
+      "mismatch": false
+    },
+    "/api/v1/posts/00000000-0000-0000-0000-000000000000": {
+      "label": "回复不存在(应 404 POST_NOT_FOUND, 需登录)",
+      "anonStatus": 401,
+      "anonCode": "AUTHENTICATION_REQUIRED",
+      "mode": "需登录",
+      "declared": "需登录",
+      "mismatch": false
+    },
+    "/api/v1/works/{fw}/comments/9999": {
+      "label": "作品评论不存在(应 404 WORK_COMMENT_NOT_FOUND, 需登录)",
       "anonStatus": 401,
       "anonCode": "AUTHENTICATION_REQUIRED",
       "mode": "需登录",
