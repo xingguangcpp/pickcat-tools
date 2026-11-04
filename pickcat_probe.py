@@ -62,7 +62,7 @@ CHANGELOG_MD = HERE / "docs" / "API-CHANGELOG.md"
 #     交集一缩就报成"服务端删了 details.post" —— 纯误报。
 #     v4 改成**分组后逐组比, 且只比两边都有的组**:
 #     "窗口里恰好装了哪几种"被隔离掉, 真结构变化照样抓得到。
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 # 判别字段候选(按优先级): 用来把列表项分成"种类"。
 # 常见于"不同种类的返回结构不一样"的端点:
@@ -84,6 +84,60 @@ SCHEMA_MAX_KEYS = 40
 # 递归收集字段路径时的最大嵌套深度。
 # 深度 1 = 只看顶层; 深度 2 = 再进一层对象 (author/stats/firstPost 这层)。
 SCHEMA_DEPTH = 2
+
+# --- 2026-11-04: 错误契约维度 -------------------------------------------------
+#
+# 之前的盲区 (2026-11-04 夜间实测发现):
+#   1. **错误响应的信封结构从没被记录过**。巡检只记了错误码 (code) 和 Zod 的
+#      details, 没记错误体本身有哪些字段。实测发现服务端错误信封**并不统一**:
+#        ROUTE_NOT_FOUND  -> {code, message}                 (没有 statusCode!)
+#        INVALID_CURSOR   -> {code, message, statusCode}
+#        VALIDATION_FAILED-> {code, message, statusCode, details}
+#        401/404 实体错误   -> {code, message, statusCode}
+#      服务端哪天给 404 补上 statusCode, 或者给 400 加个 requestId 字段,
+#      旧版巡检**完全看不见** —— 文档里的错误处理约定会悄悄过期。
+#   2. **限流/缓存相关的响应头从没被记录过**。实测 CORS 声明了
+#      `access-control-expose-headers: ETag,Badge-ETag,Emoji-ETag`,
+#      但服务端**实际上一个 ETag 都不发**, 也没有任何 X-RateLimit-* 头。
+#      哪天服务端开始发 ETag (可以省流量) 或开始限流 (会打断机器人),
+#      这对运维是大事, 但旧版巡检看不到。
+#
+# 这两项都是**与内容无关**的维度 (错误信封/响应头不随数据内容变),
+# 所以不会引入内容驱动的假警报。
+#
+# 记录哪些响应头? 只记"语义上稳定"的那些 —— 不能把 Date / x-request-id /
+# Set-Cookie 之类每次都变的头记进来, 否则每轮都报"变化"。
+STABLE_HEADERS = (
+    "cache-control",
+    # 记录哪些响应头? 只记"语义上稳定"的那些 —— 不能把 Date / x-request-id /
+# Set-Cookie 之类每次都变的头记进来, 否则每轮都报"变化"。
+#
+# 而且要分两类 —— 这是本轮踩得最深的坑:
+#   **值可比**的 (值由端点策略决定, 每轮都一样):
+#     cache-control / vary / access-control-expose-headers
+#   **只可比"在不在"**的 (值会随内容或用量变):
+#     etag / badge-etag / emoji-etag           -> 值是内容哈希, 内容一变就变
+#     x-ratelimit-remaining / x-ratelimit-reset -> 每次请求都在变
+#     retry-after                               -> 每次都不同
+#     x-ratelimit-limit                         -> 限额本身可能随时间调整
+#   如果把后一类也按值比, 那"服务端开始限流"这个**想看到**的变化,
+#   会因为"remaining 每次都在变"而变成每轮都报的假警报 ——
+#   而假警报比漏报更致命 (告警被无视 = 等于没巡检)。
+HEADER_VALUE_COMPARE = (
+    "cache-control",
+    "vary",
+    "access-control-expose-headers",
+)
+HEADER_PRESENCE_ONLY = (
+    "etag",
+    "badge-etag",
+    "emoji-etag",
+    "x-ratelimit-limit",
+    "x-ratelimit-remaining",
+    "x-ratelimit-reset",
+    "retry-after",
+)
+STABLE_HEADERS = HEADER_VALUE_COMPARE + HEADER_PRESENCE_ONLY
 
 # "已发布基线" (gitignored): 记录**最后一次成功推送**时的快照。
 # 为什么不能直接拿本地 docs/api-snapshot.json 当对比基线?
@@ -177,7 +231,46 @@ PROBES = [
     ("表情包集带 limit(该端点无此参数)", "/api/v1/emoji-collections?limit=5", True),
     ("表情包带 limit(该端点无此参数)", "/api/v1/emojis?collectionId={cid}&limit=5", True),
     ("徽章带 limit(该端点接受但不生效)", "/api/v1/badges?limit=1", True),
+    # --- 2026-11-04 补充: 错误契约维度 ---
+    #
+    # 为什么要补这批: 之前的探测项虽然覆盖了一些 404, 但**资源级 404 只覆盖了
+    # 文件和徽章两种**。实测服务端对"资源不存在"给的是**按资源类型区分**的错误码,
+    # 不是统一的 NOT_FOUND:
+    #   topic 不存在        -> TOPIC_NOT_FOUND
+    #   user 不存在         -> USER_NOT_FOUND
+    #   work 不存在         -> COMMUNITY_WORK_NOT_FOUND   (注意前缀 COMMUNITY_)
+    #   work 下的评论不存在 -> WORK_COMMENT_NOT_FOUND
+    #   emoji 集不存在     -> EMOJI_COLLECTION_NOT_FOUND
+    #   post 不存在         -> POST_NOT_FOUND
+    # 这些码是**客户端要按它分流**的 (比如 USER_NOT_FOUND 该提示"用户不存在",
+    # 而不是笼统的 404)。之前没监控 = 服务端改码我们不会知道。
+    #
+    # 全部用固定的全零 UUID -> 一定不存在, 不依赖任何真实内容, 不会随数据变。
+    ("主题不存在(应 404 TOPIC_NOT_FOUND)", "/api/v1/topics/00000000-0000-0000-0000-000000000000", True),
+    ("用户不存在(应 404 USER_NOT_FOUND)", "/api/v1/users/00000000-0000-0000-0000-000000000000", True),
+    ("作品不存在(应 404 COMMUNITY_WORK_NOT_FOUND)", "/api/v1/works/00000000-0000-0000-0000-000000000000", True),
+    ("表情包集不存在(应 404 EMOJI_COLLECTION_NOT_FOUND)", "/api/v1/emoji-collections/00000000-0000-0000-0000-000000000000", True),
+    ("回复不存在(应 404 POST_NOT_FOUND, 需登录)", "/api/v1/posts/00000000-0000-0000-0000-000000000000", False),
+    ("作品评论不存在(应 404 WORK_COMMENT_NOT_FOUND, 需登录)", "/api/v1/works/{fw}/comments/9999", False),
+    # 注: 401 有**两个不同的错误码**, 哪个路由配哪个码是固定的:
+    #   /api/v1/session -> UNAUTHENTICATED
+    #   其余私有端点     -> AUTHENTICATION_REQUIRED
+    # 这两个路由的匿名探测已经在跑 (auth 段), anonCode 现在会被比对,
+    # 所以不需要额外的探测项 —— 加了反而会**覆盖**同 path 的旧探测项
+    # (probes 是按 "GET {path}" 建键的, 同 path 后写的会把先写的顶掉)。
 ]
+
+# 探测表自身的版本号 (2026-11-04)。
+#
+# 为什么需要它: 我们扩探测面时, 新加的探测项在快照里表现为"**新增**一个端点"。
+# 但那是**我们自己加的探测**, 不是服务端新增了端点 —— 混在一起会让读 CHANGELOG
+# 的人误以为服务端变了接口 (假警报)。而"假警报比漏报更致命": 告警一旦不准,
+# 就会被无视, 等于没巡检。
+#
+# 所以: 改了 PROBES 表就把这个号 +1, 快照里记下。diff 时若探测表版本变了,
+# 本轮新增/消失的探测项会被标成"巡检器扩面", 与"服务端新增/消失端点"区分开。
+# 服务端真的新增端点时 (探测表没动), 仍然照常报"**新增**"。
+PROBE_TABLE_REV = 2
 
 
 # 匿名探测: 用来**实测**每个端点是否公开, 而不是靠 PROBES 里手写的标注。
@@ -256,6 +349,7 @@ def _subst(path, ctx):
                 .replace("{sid}", ctx["sid"])
                 .replace("{fid}", ctx.get("fid", ""))
                 .replace("{bid}", ctx.get("bid", ""))
+                .replace("{fw}", ctx.get("fw", ""))
                 .replace("{eid}", ctx.get("eid", "")))
 
 
@@ -271,6 +365,10 @@ def build_context(c):
         "fid": "",
         "bid": "badge_bugfinder",
         "eid": "",
+        # 固定的作品 id (2026-11-04): 探测"作品评论不存在"要用**固定的**作品,
+        # 不能用 {wid} —— {wid} 是"当前第一个作品", 它会随社区新作品而变,
+        # 那条探测就会时对时错 (假警报)。
+        "fw": "01a1a210-dbc4-7788-af8f-d500d5ab21fb",
     }
     try:
         ses = c.get_session()
@@ -566,6 +664,11 @@ def run_probe(c, label, path, public, prefer_disc=None):
         rec["latencyMs"] = int((time.time() - t0) * 1000)
         rec["code"] = e.code
         body = e.body if isinstance(e.body, dict) else {}
+        # 错误信封结构 (2026-11-04): 记错误体**本身有哪些字段**。
+        # 之前只记 code/details, 于是服务端给 404 补 statusCode 这类变化看不见。
+        if body:
+            rec["errKeys"] = sorted(body.keys())
+            rec["errKeysFull"] = True
         det = body.get("details")
         if det:
             rec["details"] = json.dumps(det, ensure_ascii=False)[:220]
@@ -573,6 +676,17 @@ def run_probe(c, label, path, public, prefer_disc=None):
         rec["status"] = -1
         rec["latencyMs"] = int((time.time() - t0) * 1000)
         rec["code"] = "EXC:" + str(e)[:80]
+    # 稳定响应头 (2026-11-04): 值可比的头记值; 只可比"在不在"的头只记存在性。
+    # 分开的原因见 HEADER_PRESENCE_ONLY 的注释 —— 把 remaining 这类每次都变的
+    # 值拿来比, "服务端开始限流"这个想看的变化会被淹没在假警报里。
+    hdrs = getattr(c, "_last_headers", None) or {}
+    if hdrs:
+        hval = {k: hdrs[k] for k in HEADER_VALUE_COMPARE if k in hdrs}
+        hpres = sorted(k for k in HEADER_PRESENCE_ONLY if k in hdrs)
+        if hval:
+            rec["headerValues"] = hval
+        if hpres:
+            rec["headerPresent"] = hpres
     return rec
 
 
@@ -789,10 +903,19 @@ def diff_snapshots(old, new):
     changes = []
     op = old.get("probes") or {}
     np_ = new.get("probes") or {}
+    # 探测表版本变了 = 这轮新增/消失的探测项是**我们自己加的**, 不是服务端变的。
+    # 标注清楚, 别让读 CHANGELOG 的人误以为服务端改了接口。
+    table_changed = (old.get("probeTableRev") != new.get("probeTableRev"))
     for key, rec in np_.items():
         prev = op.get(key)
         if prev is None:
-            changes.append(f"**新增** `{key}` — {rec.get('label')} (HTTP {rec.get('status')})")
+            if table_changed:
+                changes.append(
+                    f"🔧 **巡检器新增探测项** `{key}` — {rec.get('label')} "
+                    f"(HTTP {rec.get('status')})")
+            else:
+                changes.append(
+                    f"**新增** `{key}` — {rec.get('label')} (HTTP {rec.get('status')})")
             continue
         if prev.get("status") != rec.get("status"):
             changes.append(
@@ -875,6 +998,33 @@ def diff_snapshots(old, new):
             changes.append(
                 f"`{key}` 错误详情变化: {str(prev.get('details'))[:110]} → "
                 f"**{str(rec.get('details'))[:110]}**")
+        # 错误信封结构变化 (2026-11-04): 错误体**有哪些字段**变了。
+        # 实测服务端错误信封并不统一 (ROUTE_NOT_FOUND 连 statusCode 都没有),
+        # 服务端哪天补上/删掉一个字段, 客户端的错误处理约定就得跟着改。
+        # 只在两边都记了才比 (旧基线没这个字段 -> 跳过, 留到下一轮基线才有得比)。
+        pek, rek = prev.get("errKeys"), rec.get("errKeys")
+        if pek is not None and rek is not None and pek != rek:
+            changes.append(f"`{key}` 错误信封结构变化: {pek} → **{rek}**")
+        # 响应头: 值可比的那几个比值, 只比存在性的那几个比"在不在"。
+        # 分开是因为 etag 的值是内容哈希、x-ratelimit-remaining 每次请求都在变 ——
+        # 按值比会把"服务端开始限流"这个想看的变化淹在假警报里。
+        phv, nhv = prev.get("headerValues"), rec.get("headerValues")
+        if phv is not None and nhv is not None and phv != nhv:
+            for hk in sorted(set(phv) | set(nhv)):
+                if phv.get(hk) != nhv.get(hk):
+                    changes.append(
+                        f"`{key}` 响应头 `{hk}` 变化: "
+                        f"{phv.get(hk)} → **{nhv.get(hk)}**")
+        php, nhp = prev.get("headerPresent"), rec.get("headerPresent")
+        if php is not None and nhp is not None and php != nhp:
+            added = [h for h in nhp if h not in php]
+            gone = [h for h in php if h not in nhp]
+            bits = []
+            if added:
+                bits.append("新增 " + ", ".join(added))
+            if gone:
+                bits.append("消失 " + ", ".join(gone))
+            changes.append(f"`{key}` 响应头出现/消失: **{'; '.join(bits)}**")
     for key, rec in op.items():
         if key not in np_:
             changes.append(f"**消失** `{key}` (原 HTTP {rec.get('status')})")
@@ -925,6 +1075,14 @@ def diff_snapshots(old, new):
             else:
                 changes.append(
                     f"`{route}` 标注与实测现已一致 ({rec.get('mode')})")
+        # 匿名错误码变化 (2026-11-04): anonCode 一直被记着, 但**从没被比对过**。
+        # 实测发现服务端 401 有两个不同的码: /api/v1/session 给 UNAUTHENTICATED,
+        # 其余私有端点给 AUTHENTICATION_REQUIRED。这两个码哪个配哪个路由,
+        # 客户端的错误处理要按它分流 —— 服务端换码而巡检不报, 就会悄悄错配。
+        pac, nac = prev.get("anonCode"), rec.get("anonCode")
+        if pac != nac and (pac or nac):
+            changes.append(
+                f"`{route}` 匿名错误码 {pac or '(无)'} → **{nac or '(无)'}**")
     for route, rec in oa.items():
         if route not in na:
             changes.append(f"**消失(路由)** `{route}` (原 {rec.get('mode')})")

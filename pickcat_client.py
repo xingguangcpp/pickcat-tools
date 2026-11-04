@@ -80,6 +80,35 @@ def _profile():
     return os.environ.get("PICKCAT_PROFILE") or "default"
 
 
+def _read_dotenv():
+    cfg = {}
+    f = Path(__file__).resolve().parent / ".env"
+    if f.exists():
+        try:
+            for line in f.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                cfg[k.strip()] = v.strip().strip('"').strip("'")
+        except Exception:
+            pass
+    return cfg
+
+
+def posting_allowed():
+    """写操作总开关。
+
+    社区(编程猫 Pickcat)管理明确禁止"纯 AI 生成的内容"污染论坛, 并对账号执行过
+    移除回复 + 禁言处罚。因此这里加一个**默认由 .env 控制的硬闸门**:
+    设 `PICKCAT_ALLOW_POSTING=0` 即禁止一切发帖/回帖, 自动化也无法绕过。
+    """
+    v = os.environ.get("PICKCAT_ALLOW_POSTING")
+    if v is None:
+        v = _read_dotenv().get("PICKCAT_ALLOW_POSTING")
+    return str(v).strip() != "0"
+
+
 def state_file(base_name):
     """按账号档案解析状态文件路径 (账本/配额/序号/宕机状态都走这里)。"""
     root = Path(__file__).resolve().parent
@@ -769,6 +798,9 @@ class PickcatClient:
             )
         self._last_write = 0.0
         self._session_user_id = None  # 登录后缓存本人 uid
+        # 最近一次请求的响应头 (小写 key -> 值)。巡检器用它盯"服务端开始发
+        # ETag / 开始限流"这类**协议层**变化。只记录、不参与任何控制逻辑。
+        self._last_headers = {}
 
     # ---------- 底层请求 ----------
     def _request(self, method, path, json_body=None, params=None, extra_headers=None):
@@ -797,6 +829,7 @@ class PickcatClient:
         try:
             with self._opener.open(req, timeout=30) as r:
                 raw = r.read().decode("utf-8", "replace")
+                self._last_headers = {k.lower(): v for k, v in r.headers.items()}
             outage_record(True)
         except urllib.error.HTTPError as e:
             raw = e.read().decode("utf-8", "replace")
@@ -805,6 +838,12 @@ class PickcatClient:
             except Exception:
                 body = {"raw": raw}
             err = PickcatError(e.code, body)
+            # 错误响应也有头 —— 限流头 (Retry-After / X-RateLimit-*) 恰恰只在
+            # 错误响应上出现, 不记就永远看不到服务端开始限流。
+            try:
+                self._last_headers = {k.lower(): v for k, v in (e.headers or {}).items()}
+            except Exception:
+                self._last_headers = {}
             if is_service_down(err):
                 outage_record(False)
             raise err
@@ -969,6 +1008,11 @@ class PickcatClient:
         """
         tag_ids = tag_ids or []
         if not self.dry_run:
+            if not posting_allowed():
+                raise PickcatError(-4, {
+                    "error": "写操作已被 PICKCAT_ALLOW_POSTING=0 关闭",
+                    "hint": "确认社区规则与本人意愿后再把 .env 里这一项改回 1",
+                })
             self.check_participation()  # 等级闸门 (必须在消耗水印序号之前)
             check_quota("TOPIC_CREATE")  # 配额闸门: 发帖额度用尽就别浪费调用
             self._assert_no_external_link(markdown)
@@ -1039,6 +1083,11 @@ class PickcatClient:
         if reply_to_post_number is not None:
             body["replyToPostNumber"] = reply_to_post_number
         if not self.dry_run:
+            if not posting_allowed():
+                raise PickcatError(-4, {
+                    "error": "写操作已被 PICKCAT_ALLOW_POSTING=0 关闭",
+                    "hint": "确认社区规则与本人意愿后再把 .env 里这一项改回 1",
+                })
             self.check_participation()  # 等级闸门
             check_quota("TOPIC_REPLY")  # 配额闸门 (按动作分: 评论额度独立)
             self._assert_no_external_link(markdown)  # 站外链接闸门 (在消耗序号之前)
