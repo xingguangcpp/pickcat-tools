@@ -107,12 +107,7 @@ SCHEMA_DEPTH = 2
 #
 # 记录哪些响应头? 只记"语义上稳定"的那些 —— 不能把 Date / x-request-id /
 # Set-Cookie 之类每次都变的头记进来, 否则每轮都报"变化"。
-STABLE_HEADERS = (
-    "cache-control",
-    # 记录哪些响应头? 只记"语义上稳定"的那些 —— 不能把 Date / x-request-id /
-# Set-Cookie 之类每次都变的头记进来, 否则每轮都报"变化"。
-#
-# 而且要分两类 —— 这是本轮踩得最深的坑:
+# 而且要分两类 —— 这是踩得最深的坑:
 #   **值可比**的 (值由端点策略决定, 每轮都一样):
 #     cache-control / vary / access-control-expose-headers
 #   **只可比"在不在"**的 (值会随内容或用量变):
@@ -1386,7 +1381,8 @@ def maybe_autopush(changes, snap, heartbeat=False):
         return None
 
     def run(cmd, **kw):
-        return subprocess.run(cmd, cwd=str(HERE), capture_output=True, text=True, **kw)
+        return subprocess.run(cmd, cwd=str(HERE), capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", **kw)
 
     try:
         run(["git", "add", "docs/api-snapshot.json", "docs/API-STATUS.md",
@@ -1400,8 +1396,27 @@ def maybe_autopush(changes, snap, heartbeat=False):
             print("⚠ git commit 失败:", (r.stderr or r.stdout)[:200])
             return None
         url = "https://xingguangcpp:" + token + "@github.com/xingguangcpp/pickcat-tools.git"
-        r2 = run(["git", "-c", "http.sslVerify=false", "push", url, "HEAD:main"])
-        if r2.returncode == 0:
+        # 本仓库可能有**另一个自动化**在同时 commit/push(嘴替任务)。
+        # 直接 push 会撞 non-fast-forward 而失败 -> 连续失败会被平台自动暂停
+        # (真踩过: 巡检从 11-03 22:16 起就没再跑过)。所以先 fetch+rebase 再推, 失败重试一次。
+        r2 = None
+        for attempt in range(2):
+            run(["git", "fetch", "origin", "main"])
+            run(["git", "rebase", "origin/main"])
+            r2 = run(["git", "-c", "http.sslVerify=false", "push", url, "HEAD:main"])
+            if r2.returncode == 0:
+                break
+            err = (r2.stderr or r2.stdout)
+            if "nothing to commit" in err or "up to date" in err:
+                print("✅ 远端已是最新, 无需推送")
+                save_published_baseline(snap)
+                return msg
+            if attempt == 0:
+                print("  推送冲突(可能有其他自动化在推), rebase 后重试…")
+                continue
+            print("⚠ 自动推送失败:", err[:200].replace(token, "***"))
+            return None
+        if r2 is not None and r2.returncode == 0:
             print("✅ 已自动提交并推送到 GitHub")
             # 只有真的推上去了, 才把这轮快照记为"已发布基线"。
             # 推送失败时基线不动 -> 下一轮仍拿旧基线对比 -> 这组变化会被重新

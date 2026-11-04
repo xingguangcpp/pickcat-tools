@@ -96,6 +96,27 @@ def _read_dotenv():
     return cfg
 
 
+def topics_written_today():
+    """今天经本工具发过几个主题帖(从账本数)。"""
+    import datetime as _dt
+    try:
+        led = ledger_read()
+    except Exception:
+        return 0
+    today = _dt.date.today()
+    n = 0
+    for r in led:
+        if r.get("kind") != "topic":
+            continue
+        try:
+            d = _dt.datetime.strptime(r.get("at", ""), "%Y-%m-%d %H:%M:%S").date()
+        except Exception:
+            continue
+        if d == today:
+            n += 1
+    return n
+
+
 def posting_allowed():
     """写操作总开关。
 
@@ -1015,6 +1036,13 @@ class PickcatClient:
                 })
             self.check_participation()  # 等级闸门 (必须在消耗水印序号之前)
             check_quota("TOPIC_CREATE")  # 配额闸门: 发帖额度用尽就别浪费调用
+            cap = int(_read_dotenv().get("PICKCAT_BOT_MAX_TOPICS_PER_DAY", "0")
+                      or os.environ.get("PICKCAT_BOT_MAX_TOPICS_PER_DAY", "0") or 0)
+            if cap and topics_written_today() >= cap:
+                raise PickcatError(-4, {
+                    "error": f"今日主题帖已达机器人上限 {cap} 条(为号主留额度), 跳过",
+                    "hint": "发帖是最显眼的一类, 默认上限 0; 确实要发请人工改 .env",
+                })
             self._assert_no_external_link(markdown)
             self._assert_no_external_link(title)
         if not tag_ids and not self.dry_run:

@@ -46,7 +46,8 @@ from pickcat_client import (  # noqa: E402
 ENV_FILE = HERE / ".env"
 
 # 每帖顶层评论上限 (用户定的规矩)
-MAX_TOP_LEVEL = 3
+# 每帖顶层评论从 3 降到 1 —— 少插嘴。
+MAX_TOP_LEVEL = 1
 # (每日上限等参数在下面 load_env() 之后统一读取, 因为要支持 .env 配置)
 # feed 里最多看多少帖用于找 AI 候选 (服务端 feed limit 上限 50, 用 100 直接 400)
 FEED_SCAN = int(os.environ.get("PICKCAT_BOT_FEED_SCAN", "50"))
@@ -98,8 +99,11 @@ def _num(key, default, cast=int):
 
 # 每日上限, 防刷屏。评论(评新帖)是刷量方向, 卡得紧; 回复(回具体楼层)是"嘴替"本职,
 # 卡太死会让人干等着, 所以给得宽 —— 平台真正的限制在发帖额度上, 见 README"配额"一节。
-MAX_COMMENTS_PER_DAY = _num("PICKCAT_BOT_MAX_COMMENTS_PER_DAY", 3)
-MAX_REPLIES_PER_DAY = _num("PICKCAT_BOT_MAX_REPLIES_PER_DAY", 12)
+# 2026-11-04 按社区反馈("最扰民")重订: 主动去陌生帖插嘴 = 最扰民的那类 -> **直接归零**。
+# 社区原话:「最扰民」「人写的东西是有自己的思想的, AI 呢? 它没有哦」。
+MAX_COMMENTS_PER_DAY = _num("PICKCAT_BOT_MAX_COMMENTS_PER_DAY", 0)
+# 总回复池也压到 3 条/天(原来 12)。**保号优先于活跃度**。
+MAX_REPLIES_PER_DAY = _num("PICKCAT_BOT_MAX_REPLIES_PER_DAY", 3)
 # --- 给"有人回我"留的名额 (2026-11-03 22:xx 加) ---
 # 背景: 每天 12 条回复额度是**一个池子**, 反应式(有人回我) 和主动式(我自选话题)
 # 抢同一个池子。实测 11-03: 额度在 08:48 就被花光 (其中主动式 8 条), 而当天
@@ -118,11 +122,30 @@ MAX_REPLIES_PER_DAY = _num("PICKCAT_BOT_MAX_REPLIES_PER_DAY", 12)
 # 为什么是 9 而不是 8: 反应式需求实测是**双峰**的 (11-01 有 19 次要答,
 # 11-02 只有 6 次), 拿 9 条预留能覆盖常态; 主动式留 3 条也和"评新帖"那个
 # 3 条/天的评论额度对称 (两条都是"我自己挑的"非必需产出)。
-REACTIVE_RESERVE = _num("PICKCAT_BOT_REACTIVE_RESERVE", 9)
+# 全部 3 条都留给"有人回我"(反应式); 主动式(我自选话题去答) = 0 条。
+REACTIVE_RESERVE = _num("PICKCAT_BOT_REACTIVE_RESERVE", 3)
+# 同一个帖里最多回几条(含楼中楼) —— 社区明确提了"楼中楼也适当少点"
+MAX_REPLIES_PER_TOPIC = _num("PICKCAT_BOT_MAX_REPLIES_PER_TOPIC", 1)
+
+# --- 平台硬上限 vs 机器人的份额 (2026-11-04 重订) ---
+# 平台对写操作有硬上限, 这些是**号主的**, 机器人只能占其中一小份:
+#   TOPIC_REPLY : 15 条/天 (用户告知)
+#   TOPIC_CREATE: 10 条/24h 滚动窗 (实测 reasonDetails)
+# 机器人份额刻意压得很低, 把大部分额度留给号主自由发言。
+# 社区 2026-11-04 的反馈:「最扰民」「人写的东西是有自己的思想的」+ 移除回复/禁言处罚。
+PLATFORM_REPLY_LIMIT_PER_DAY = _num("PICKCAT_PLATFORM_REPLY_LIMIT", 15)
+PLATFORM_TOPIC_LIMIT_PER_DAY = _num("PICKCAT_PLATFORM_TOPIC_LIMIT", 10)
+# 机器人自己的上限(占平台上限的一小部分)
+MAX_TOPICS_PER_DAY = _num("PICKCAT_BOT_MAX_TOPICS_PER_DAY", 0)      # 主动发帖 = 0(最显眼)
+# 两次写操作最小间隔(秒) —— 提别太快, 别看着像刷屏
+WRITE_INTERVAL = _num("PICKCAT_BOT_WRITE_INTERVAL", 30.0, float)
+# 每小时最多写几条(频率闸门)
+MAX_WRITES_PER_HOUR = _num("PICKCAT_BOT_MAX_WRITES_PER_HOUR", 2)
+# 号主今天自己已经发了 >= 这个数, 机器人本轮让路闭嘴(把余量全留给号主)
+OWNER_ACTIVITY_SOFT_CAP = _num("PICKCAT_BOT_OWNER_SOFT_CAP", 3)
 # 主动式(自选话题) 最多能用掉多少条 = 总池子 - 给反应式预留的
 MAX_PROACTIVE_REPLIES_PER_DAY = max(0, MAX_REPLIES_PER_DAY - REACTIVE_RESERVE)
 # 两次写操作最小间隔(秒)
-WRITE_INTERVAL = _num("PICKCAT_BOT_WRITE_INTERVAL", 8.0, float)
 # "回我"的历史楼层最多回溯多少天 (再早的回信不该翻出来回)
 REPLY_HORIZON_DAYS = _num("PICKCAT_BOT_REPLY_HORIZON_DAYS", 7)
 # --- 连发回答的合并阈值 ---
@@ -325,6 +348,64 @@ def ledger_top_level_records(topic_id):
         except Exception:
             continue
     return out
+
+
+def account_replies_today(c, uid):
+    """这个账号今天一共回了几条(含机器人和号主自己) —— 用 GET /users/{uid}/posts?role=reply。
+
+    平台的回复上限是**号主的**, 机器人的份额必须让开 —— 所以要能看见号主自己的活跃度。
+    """
+    import datetime as _dt
+    try:
+        data = c._request("GET", f"/api/v1/users/{uid}/posts?role=reply&limit=50")
+    except PickcatError:
+        return None
+    items = (data.get("items") if isinstance(data, dict) else data) or []
+    today = _dt.date.today()
+    n = 0
+    for it in items:
+        ca = it.get("createdAt") or ""
+        try:
+            d = _dt.datetime.fromisoformat(ca.replace("Z", "+00:00")).astimezone().date()
+        except Exception:
+            continue
+        if d == today:
+            n += 1
+    return n
+
+
+def owner_active_today(c, uid, bot_count_today=0):
+    """号主今天自己发言数(总回复数 - 机器人的)。>= OWNER_ACTIVITY_SOFT_CAP 时机器人让路。"""
+    total = account_replies_today(c, uid)
+    if total is None:
+        return None
+    return max(0, total - int(bot_count_today or 0))
+
+
+def writes_in_last_hour(st):
+    """最近一小时 we've written 几条(用于频率闸门)。"""
+    import datetime as _dt
+    arr = st.get("writes") or []
+    now = _dt.datetime.now()
+    keep = []
+    for t in arr:
+        try:
+            ts = _dt.datetime.fromisoformat(t)
+            if (now - ts).total_seconds() < 3600:
+                keep.append(t)
+        except Exception:
+            continue
+    st["writes"] = keep
+    return len(keep)
+
+
+def my_reply_count_in_topic(c, topic_id, uid):
+    """我在这个帖里一共回过几条(含顶层与楼中楼) —— 用于"每帖最多回 N 条"护栏。"""
+    n = 0
+    for it in posts_of(c, topic_id, limit=80):
+        if (it.get("author") or {}).get("id") == uid:
+            n += 1
+    return n
 
 
 def my_top_level_count(c, topic_id, uid):
@@ -1080,6 +1161,25 @@ def _cmd_reply_locked(c, args):
             print(f"[护栏] 今日评论已达上限 {MAX_COMMENTS_PER_DAY}, 跳过。",
                   file=sys.stderr)
             sys.exit(3)
+    # 护栏 0: 号主今天自己说得多了 -> 机器人本轮让路(把额度全留给号主)
+    owner_n = owner_active_today(c, uid, d.get("replies", 0))
+    if owner_n is not None and owner_n >= OWNER_ACTIVITY_SOFT_CAP:
+        print(f"[让路] 号主今天已自己发言 {owner_n} 条 (>= {OWNER_ACTIVITY_SOFT_CAP}), "
+              f"机器人本轮闭嘴。", file=sys.stderr)
+        sys.exit(3)
+    # 护栏 0.5: 频率闸门 —— 每小时最多写 MAX_WRITES_PER_HOUR 条
+    if writes_in_last_hour(st) >= MAX_WRITES_PER_HOUR:
+        print(f"[护栏] 最近一小时已写 {MAX_WRITES_PER_HOUR} 条, 放慢。", file=sys.stderr)
+        sys.exit(3)
+
+    # 护栏 1.5: 同一帖最多回 N 条(防刷屏; 社区明确提过"楼中楼也适当少点")
+    if args.reply_to not in (0, 1, None):
+        per_topic = my_reply_count_in_topic(c, args.topic_id, uid)
+        if per_topic >= MAX_REPLIES_PER_TOPIC:
+            print(f"[护栏] 该帖我已经回过 {per_topic} 条 (上限 {MAX_REPLIES_PER_TOPIC}), 不刷屏。",
+                  file=sys.stderr)
+            sys.exit(3)
+
     # 护栏 3: 每日回复上限 (楼中楼回复才占回复额度)
     else:
         if d["replies"] >= MAX_REPLIES_PER_DAY:
@@ -1135,6 +1235,10 @@ def _cmd_reply_locked(c, args):
     if getattr(args, "notify", None):
         print(f"[ok] 通知已标记处理: {args.notify}", file=sys.stderr)
     print(json.dumps(resp, ensure_ascii=False))
+    import datetime as _dt
+    st.setdefault("writes", []).append(_dt.datetime.now().isoformat(timespec="seconds"))
+    st["writes"] = st["writes"][-50:]
+    save_state(st)
     print("[ok] 已提交, 状态: " + str(resp.get("status")), file=sys.stderr)
 
 
@@ -1471,6 +1575,36 @@ def cmd_notify(c, args):
     print("=" * 62)
 
 
+def cmd_limits(c, args):
+    """把整套限制摊开: 平台硬上限 / 机器人份额 / 号主余量 / 今日实际用量。"""
+    st = load_state()
+    d = daily_guard(st, "replies")
+    save_state(st)
+    uid = client_uid(c)
+    total_today = account_replies_today(c, uid)
+    bot_today = int(d.get("replies", 0))
+    owner_today = (max(0, total_today - bot_today) if total_today is not None else None)
+    print("=" * 64)
+    print("【限制总表】平台硬上限是号主的, 机器人只占一小份")
+    print(f"  {'':<20}{'平台上限':>10}{'机器人份额':>12}{'留给号主':>10}")
+    print(f"  {'回复(含楼中楼)':<18}{PLATFORM_REPLY_LIMIT_PER_DAY:>12}"
+          f"{MAX_REPLIES_PER_DAY:>12}{max(0, PLATFORM_REPLY_LIMIT_PER_DAY - MAX_REPLIES_PER_DAY):>10}")
+    print(f"  {'发主题帖':<19}{PLATFORM_TOPIC_LIMIT_PER_DAY:>12}"
+          f"{MAX_TOPICS_PER_DAY:>12}{max(0, PLATFORM_TOPIC_LIMIT_PER_DAY - MAX_TOPICS_PER_DAY):>10}")
+    print(f"  {'评论(去陌生帖插嘴)':<17}{'(同回复池)':>12}{MAX_COMMENTS_PER_DAY:>12}{'-':>10}")
+    print(f"  {'每帖顶层评论':<18}{'-':>12}{MAX_TOP_LEVEL:>12}{'-':>10}")
+    print(f"  {'每帖回复(含楼中楼)':<17}{'-':>12}{MAX_REPLIES_PER_TOPIC:>12}{'-':>10}")
+    print(f"  {'每小时写操作':<19}{'-':>12}{MAX_WRITES_PER_HOUR:>12}{'-':>10}")
+    print(f"  {'两次写最小间隔':<18}{'-':>12}{int(WRITE_INTERVAL)}s{'-':>10}")
+    print(f"  {'号主活跃让路阈值':<17}{'-':>12}{OWNER_ACTIVITY_SOFT_CAP:>12}{'-':>10}")
+    print("-" * 64)
+    print(f"  今日机器人: 回复 {bot_today}/{MAX_REPLIES_PER_DAY}, 评论 {d.get('comments', 0)}/{MAX_COMMENTS_PER_DAY}")
+    print(f"  今日账号共回 {total_today if total_today is not None else '?'} 条, "
+          f"其中号主自己 {owner_today if owner_today is not None else '?'} 条")
+    print(f"  号主活跃 >= {OWNER_ACTIVITY_SOFT_CAP} 时机器人自动让路闭嘴")
+    print("=" * 64)
+
+
 def cmd_state(c, args):
     st = load_state()
     d = daily_guard(st, "replies")  # 跨天自动清零, 别显示昨天的残留
@@ -1751,6 +1885,7 @@ def main():
     sub.add_parser("verify", help="验证水印能否在服务端存活")
     sub.add_parser("refresh", help="复查未完成投稿的审核状态 + 更新配额")
     sub.add_parser("quota", help="查看配额限制与恢复时间")
+    sub.add_parser("limits", help="摊开限制总表: 平台上限/机器人份额/号主余量/今日用量")
     p = sub.add_parser("notify", help="列出谁回了我(读通知, 比扫帖子准)")
     p.add_argument("--limit", type=int, default=30)
 
@@ -1771,6 +1906,7 @@ def main():
             "verify": cmd_verify,
             "refresh": cmd_refresh,
             "quota": cmd_quota,
+        "limits": cmd_limits,
         "notify": cmd_notify,
         }[args.cmd](c, args)
     except PickcatError as e:
