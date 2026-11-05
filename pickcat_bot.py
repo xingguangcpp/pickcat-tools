@@ -47,7 +47,6 @@ ENV_FILE = HERE / ".env"
 
 # 每帖顶层评论上限 (用户定的规矩)
 # 每帖顶层评论从 3 降到 1 —— 少插嘴。
-MAX_TOP_LEVEL = 1
 # (每日上限等参数在下面 load_env() 之后统一读取, 因为要支持 .env 配置)
 # feed 里最多看多少帖用于找 AI 候选 (服务端 feed limit 上限 50, 用 100 直接 400)
 FEED_SCAN = int(os.environ.get("PICKCAT_BOT_FEED_SCAN", "50"))
@@ -103,7 +102,10 @@ def _num(key, default, cast=int):
 # 社区原话:「最扰民」「人写的东西是有自己的思想的, AI 呢? 它没有哦」。
 MAX_COMMENTS_PER_DAY = _num("PICKCAT_BOT_MAX_COMMENTS_PER_DAY", 0)
 # 主动池 = 发主题帖 + 顶层盖楼, 合计上限(作者定的天花板: 帖子至多 2 条, 一般也不会发)
-MAX_PROACTIVE_PER_DAY = _num("PICKCAT_BOT_MAX_PROACTIVE_PER_DAY", 2)
+# 主动池(发帖+盖楼合计): 作者定稿"非必要不发, 默认0" —— 0 = 主动发言一律不发
+MAX_PROACTIVE_PER_DAY = _num("PICKCAT_BOT_MAX_PROACTIVE_PER_DAY", 0)
+# 每帖顶层评论: 作者定稿"非必要不发, 默认0" —— 0 = 一律不发(不设限请给个大数)
+MAX_TOP_LEVEL = _num("PICKCAT_BOT_MAX_TOP_LEVEL", 0)
 # 总回复池也压到 3 条/天(原来 12)。**保号优先于活跃度**。
 MAX_REPLIES_PER_DAY = _num("PICKCAT_BOT_MAX_REPLIES_PER_DAY", 10)
 # --- 给"有人回我"留的名额 (2026-11-03 22:xx 加) ---

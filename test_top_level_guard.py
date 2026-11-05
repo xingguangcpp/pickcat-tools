@@ -47,6 +47,7 @@ import pickcat_client as C  # noqa: E402
 # 被测的那条护栏一律用模块常量, 以后改上限测试自动跟随。
 B.MAX_WRITES_PER_HOUR = 999          # 频率闸门: 与本测试无关
 B.MAX_REPLIES_PER_TOPIC = 999        # 每帖回复数: 与本测试无关
+B.MAX_TOP_LEVEL = 3               # 被测对象: 每帖顶层上限(作者定稿默认0, 这里要一个具体值)
 B.MAX_COMMENTS_PER_DAY = 3      # 与本测试无关
 
 FAILS = 0

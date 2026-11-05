@@ -1084,12 +1084,15 @@ class PickcatClient:
                 })
             self.check_participation()  # 等级闸门 (必须在消耗水印序号之前)
             check_quota("TOPIC_CREATE")  # 配额闸门: 发帖额度用尽就别浪费调用
-            pool_cap = int(_read_dotenv().get("PICKCAT_BOT_MAX_PROACTIVE_PER_DAY", "2")
-                           or os.environ.get("PICKCAT_BOT_MAX_PROACTIVE_PER_DAY", "2") or 2)
+            pool_raw = (_read_dotenv().get("PICKCAT_BOT_MAX_PROACTIVE_PER_DAY")
+                        or os.environ.get("PICKCAT_BOT_MAX_PROACTIVE_PER_DAY")
+                        or "0")
+            pool_cap = int(pool_raw)
+            # 0 = "非必要不发" -> 主动发言一律禁止(不是"不限制"!)
             if proactive_written_today() >= pool_cap:
                 raise PickcatError(-4, {
-                    "error": f"今日主动发言已达上限 {pool_cap} 条(发帖+盖楼合计, 作者定的天花板), 跳过",
-                    "hint": "主动发帖/盖楼一般也不会发; 需要时人工改 .env",
+                    "error": f"主动发言已被禁止 (作者定稿: 非必要不发, 默认0), 跳过",
+                    "hint": "需要发主动内容时人工改 .env 的 PICKCAT_BOT_MAX_PROACTIVE_PER_DAY",
                 })
             self._assert_no_external_link(markdown)
             self._assert_no_external_link(title)
