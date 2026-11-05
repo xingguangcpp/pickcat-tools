@@ -41,6 +41,14 @@ sys.path.insert(0, str(HERE))
 import pickcat_bot as B  # noqa: E402
 import pickcat_client as C  # noqa: E402
 
+# --- 护栏隔离 (2026-11-05) -------------------------------------------------
+# 限制表在作者定稿后变严了(评论额度=0 / 每帖回复<=1 / 每小时<=2), 而本文件只验**一条**护栏,
+# 别的护栏会误伤。这里把无关护栏临时放开, 让测试聚焦它要验的那条。
+# 被测的那条护栏一律用模块常量, 以后改上限测试自动跟随。
+B.MAX_WRITES_PER_HOUR = 999          # 频率闸门: 与本测试无关
+B.MAX_REPLIES_PER_TOPIC = 999        # 每帖回复数: 与本测试无关
+B.MAX_COMMENTS_PER_DAY = 3      # 与本测试无关
+
 FAILS = 0
 PASSES = 0
 
@@ -202,8 +210,10 @@ n, ok = count_top_level(c8, ledger8)
 check("计数 = 0", n == 0, f"got {n}")
 
 print("\n=== 测试 9: 额度没满时正常放行 ===")
-c9 = FakeClient(server_items=[tl_post("s1", 2)])
-blocked, sent = run_comment(c9, [rec(1, 1, "s1")])
+# 上限现在是 1(作者定稿): "额度没满" = 服务端一条顶层评论都看不到
+c9 = FakeClient(server_items=[])
+# 上限现在是 1(作者定稿), "额度没满" = 该帖 0 条顶层评论
+blocked, sent = run_comment(c9, [])
 check("没被拦", not blocked)
 check("确实发出去了", len(sent) == 1, f"sent={sent}")
 

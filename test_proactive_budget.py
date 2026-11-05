@@ -33,6 +33,18 @@ sys.path.insert(0, str(HERE))
 import pickcat_bot as B  # noqa: E402
 import pickcat_client as C  # noqa: E402
 
+B.MAX_PROACTIVE_REPLIES_PER_DAY = 3  # 被测对象: 主动式上限>0, 否则主动式永远被拦
+B.MAX_REPLIES_PER_DAY = 10            # 被测对象: 总池子
+
+# --- 护栏隔离 (2026-11-05) -------------------------------------------------
+# 限制表在作者定稿后变严了(评论额度=0 / 每帖回复<=1 / 每小时<=2), 而本文件只验**一条**护栏,
+# 别的护栏会误伤。这里把无关护栏临时放开, 让测试聚焦它要验的那条。
+# 被测的那条护栏一律用模块常量, 以后改上限测试自动跟随。
+B.MAX_WRITES_PER_HOUR = 999          # 频率闸门: 与本测试无关
+B.MAX_REPLIES_PER_TOPIC = 999        # 每帖回复数: 与本测试无关
+B.MAX_COMMENTS_PER_DAY = 3      # 与本测试无关
+B.MAX_TOP_LEVEL = 3               # 与本测试无关
+
 FAILS = 0
 PASSES = 0
 

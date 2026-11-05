@@ -360,7 +360,8 @@ def account_replies_today(c, uid):
     import datetime as _dt
     try:
         data = c._request("GET", f"/api/v1/users/{uid}/posts?role=reply&limit=50")
-    except PickcatError:
+    except Exception:
+        # 拿不到就返回 None = "不知道号主活跃度" -> 不触发让路, 但其它护栏照常
         return None
     items = (data.get("items") if isinstance(data, dict) else data) or []
     today = _dt.date.today()
@@ -1183,7 +1184,10 @@ def _cmd_reply_locked(c, args):
             sys.exit(3)
 
     # 护栏 3: 每日回复上限 (楼中楼回复才占回复额度)
-    else:
+    # 注: 这里原本是 `if is_top:` 的 else 分支, 中间被插入了独立的护栏块(让路/频率/每帖上限),
+    # 配对被拆散 -> else 改绑到上面的 `if args.reply_to not in (...)` 上, 导致楼中楼回复
+    # 跳过"每日回复上限"且 reactive 未赋值(UnboundLocalError)。这里等价改写为 `if not is_top:`。
+    if not is_top:
         if d["replies"] >= MAX_REPLIES_PER_DAY:
             print(f"[护栏] 今日回复已达上限 {MAX_REPLIES_PER_DAY}, 跳过。", file=sys.stderr)
             sys.exit(3)
@@ -1200,6 +1204,8 @@ def _cmd_reply_locked(c, args):
         # 判定用**客观口径** (目标楼层的父楼层作者是我), 与 check 的 isReplyToMe
         # 同一套判据 —— 记账口径和需求口径必须对得上。
         # 判不准时(None)按反应式放行: 宁可少发主动内容, 也不让人干等。
+        # 防御: 无论走哪个分支, reactive 都有值(None = 判不准, 按反应式放行)
+        reactive = None
         reactive = _reply_is_reactive(
             c, args.topic_id, args.reply_to, uid, getattr(args, "notify", None)
         )

@@ -300,11 +300,31 @@ def _write_lock_path():
     return state_file(".wm_write.lock")
 
 
+def _open_lock_file(path, deadline):
+    """打开锁文件, 必要时**排队等**另一个进程释放。
+
+    Windows 上有个坑: 另一个进程正持有该锁文件时, 本进程 open(path, "a+b")
+    会直接抛 PermissionError (文件共享语义), 表现为"崩了"而不是"排队等锁"。
+    实测 3~5/10 概率触发 —— 两个实例同时发回帖时, 后一个直接异常退出,
+    而不是等前一个发完再被护栏拦下(那才是期望行为: 串行 + fail closed)。
+    所以这里把 PermissionError 当成"还没轮到"来重试, 到 deadline 才抛 OSError。
+    """
+    while True:
+        try:
+            return open(path, "a+b")
+        except PermissionError:
+            if time.time() >= deadline:
+                raise OSError(f"锁文件被其它进程占用, 等不到: {path}")
+            time.sleep(0.05)
+
+
+
 def _acquire_file_lock(timeout=60.0):
     """跨进程排他锁 (阻塞式, 带超时)。返回句柄, 失败抛 OSError。"""
     import platform
 
     path = _write_lock_path()
+    deadline = time.time() + timeout
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
     except Exception:
@@ -312,13 +332,12 @@ def _acquire_file_lock(timeout=60.0):
     if platform.system() == "Windows":
         import msvcrt
 
-        fh = open(path, "a+b")
+        fh = _open_lock_file(path, deadline)
         # msvcrt.locking 需要至少 1 字节可锁
         fh.seek(0, os.SEEK_END)
         if fh.tell() == 0:
             fh.write(b"\0")
             fh.flush()
-        deadline = time.time() + timeout
         while True:
             try:
                 fh.seek(0)
@@ -332,8 +351,7 @@ def _acquire_file_lock(timeout=60.0):
     else:
         import fcntl
 
-        fh = open(path, "a+b")
-        deadline = time.time() + timeout
+        fh = _open_lock_file(path, deadline)
         while True:
             try:
                 fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)

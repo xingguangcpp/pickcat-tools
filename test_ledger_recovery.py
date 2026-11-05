@@ -128,9 +128,9 @@ with FakeStateDir() as fs:
     check("两份都坏时读出 0 条", C.ledger_read() == [], f"got {C.ledger_read()!r}")
     check("两份都坏 -> 判定为故障", C.ledger_unreadable() is True)
     d = B.daily_guard({}, "replies")
-    check("状态也丢失时按满额拦 (comments=3)", d["comments"] == 3,
+    check(f"状态也丢失时按满额拦 (comments={B.MAX_COMMENTS_PER_DAY})", d["comments"] == B.MAX_COMMENTS_PER_DAY,
           f"got {d['comments']}")
-    check("状态也丢失时按满额拦 (replies=12)", d["replies"] == 12,
+    check(f"状态也丢失时按满额拦 (replies={B.MAX_REPLIES_PER_DAY})", d["replies"] == B.MAX_REPLIES_PER_DAY,
           f"got {d['replies']}")
 
 print("\n=== 测试 5: 全新环境 -> 用量确实是 0, 不误报故障 ===")

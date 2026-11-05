@@ -45,6 +45,14 @@ sys.path.insert(0, str(HERE))
 import pickcat_bot as B  # noqa: E402
 import pickcat_client as C  # noqa: E402
 
+# --- 护栏隔离 (2026-11-05) -------------------------------------------------
+# 限制表在作者定稿后变严了(评论额度=0 / 每帖回复<=1 / 每小时<=2), 而本文件只验**一条**护栏,
+# 别的护栏会误伤。这里把无关护栏临时放开, 让测试聚焦它要验的那条。
+# 被测的那条护栏一律用模块常量, 以后改上限测试自动跟随。
+B.MAX_WRITES_PER_HOUR = 999          # 频率闸门: 与本测试无关
+B.MAX_REPLIES_PER_TOPIC = 999        # 每帖回复数: 与本测试无关
+B.MAX_COMMENTS_PER_DAY = 3          # 评论额度: 本测试要验并发放行 1 条
+
 FAILS = 0
 PASSES = 0
 
@@ -111,7 +119,8 @@ def seed_replies(d, n):
     C._atomic_write_json(d / ".wm_ledger.json", rows)
 
 
-def run_concurrent_reply(workers=4, pre=11):
+def run_concurrent_reply(workers=4, pre=None):
+    pre = B.MAX_REPLIES_PER_DAY - 1 if pre is None else pre
     """并发起 N 个实例回同一条楼中楼, 返回实际发出条数。"""
     d = use_tmpdir()
     seed_replies(d, pre)
@@ -161,17 +170,17 @@ def run_concurrent_comment(workers=4, pre=2):
     return d, len(client.created)
 
 
-print("=== 测试 1: 并发回帖 —— 上限 12, 预置 11 条, 4 个并发实例 ===")
-d1, sent1 = run_concurrent_reply(workers=4, pre=11)
+print(f"=== 测试 1: 并发回帖 —— 上限 {B.MAX_REPLIES_PER_DAY}, 预置 {B.MAX_REPLIES_PER_DAY - 1} 条, 4 个并发实例 ===")
+d1, sent1 = run_concurrent_reply(workers=4)
 check("只放行到上限为止 (最多再发 1 条)", sent1 <= 1, f"实际发出 {sent1} 条")
 check("确实发出了那 1 条 (不是全被拦死)", sent1 == 1, f"实际发出 {sent1} 条")
 rows1 = json.loads((d1 / ".wm_ledger.json").read_text(encoding="utf-8"))
-check("账本里当天回复数 = 12 (11 预置 + 1 新发)",
-      sum(1 for r in rows1 if r.get("at", "").startswith(TODAY)) == 12,
+check(f"账本里当天回复数 = {B.MAX_REPLIES_PER_DAY} ({B.MAX_REPLIES_PER_DAY - 1} 预置 + 1 新发)",
+      sum(1 for r in rows1 if r.get("at", "").startswith(TODAY)) == B.MAX_REPLIES_PER_DAY,
       f"got {len(rows1)}")
 
 print("\n=== 测试 2: 并发顶层评论 —— 上限 3, 预置 2 条, 4 个并发实例 ===")
-d2, sent2 = run_concurrent_comment(workers=4, pre=2)
+d2, sent2 = run_concurrent_comment(workers=4, pre=max(0, B.MAX_TOP_LEVEL - 1))
 check("只放行到上限为止 (最多再发 1 条)", sent2 <= 1, f"实际发出 {sent2} 条")
 check("确实发出了那 1 条", sent2 == 1, f"实际发出 {sent2} 条")
 
@@ -307,8 +316,8 @@ finally:
 
 print("\n=== 测试 9: 跨进程并发回帖 —— 真正两个进程, 只应放行 1 条 ===")
 d9 = use_tmpdir()
-seed_replies(d9, 11)
-B.save_state({"daily": {"date": TODAY, "comments": 0, "replies": 11}, "watched": {}})
+seed_replies(d9, B.MAX_REPLIES_PER_DAY - 1)
+B.save_state({"daily": {"date": TODAY, "comments": 0, "replies": B.MAX_REPLIES_PER_DAY - 1}, "watched": {}})
 # 两个"实例"各起一个真子进程, 同时回同一条楼中楼。
 # 注意: 子进程脚本里不要出现裸的 % (会和外层的字符串格式化打架) ——
 # 用 .format() 而不是 % 运算符。
@@ -337,13 +346,21 @@ child = (
 procs = [subprocess.Popen([sys.executable, "-c", child], stdout=subprocess.PIPE,
                           stderr=subprocess.PIPE, text=True) for _ in range(2)]
 outs = []
+errs = []
 for p in procs:
-    so, _ = p.communicate(timeout=60)
+    so, se = p.communicate(timeout=60)
     outs.append(so)
+    errs.append(se)
 sent = sum(1 for o in outs if "SENT" in o)
 blocked = sum(1 for o in outs if "BLOCKED" in o)
 check("两个进程里只有 1 个发出 (另一个被护栏拦下)", sent == 1, f"sent={sent} blocked={blocked}")
 check("另一个确实是被拦下 (不是崩了)", blocked == 1, f"sent={sent} blocked={blocked}")
+if blocked != 1:
+    # 子进程崩了(而不是被护栏拦下)时把 stderr 打出来, 否则无从查起
+    for i, (o, e) in enumerate(zip(outs, errs)):
+        if "SENT" not in o and "BLOCKED" not in o:
+            print(f"  [子进程 {i} 未产出 SENT/BLOCKED, 退出码异常]")
+            print("  stderr:", (e or "").strip()[-800:])
 
 print(f"\n{'=' * 50}")
 print(f"通过 {PASSES} / 失败 {FAILS}")
