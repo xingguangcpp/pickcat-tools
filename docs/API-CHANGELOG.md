@@ -158,3 +158,7 @@
 - **新增** `GET /api/v1/posts/00000000-0000-0000-0000-000000000000` — 回复不存在(应 404 POST_NOT_FOUND, 需登录) (HTTP 404)
 - **新增** `GET /api/v1/works/{fw}/comments/9999` — 作品评论不存在(应 404 WORK_COMMENT_NOT_FOUND, 需登录) (HTTP 404)
 - 📐 **快照格式升级** 4 → v5: 结构记录改为完整顶层键 + 字段路径 + 列表项形态集合 + 分组结构 (本轮不逐项报结构差异, 新基线从下一轮开始生效)
+
+## 2026-11-05 20:47:56
+
+- `GET /api/v1/session` 字段路径变化: 消失 `silence.publicReasonDetail`, `silence.until`, `user.silence`
