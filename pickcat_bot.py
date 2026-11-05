@@ -102,8 +102,10 @@ def _num(key, default, cast=int):
 # 2026-11-04 按社区反馈("最扰民")重订: 主动去陌生帖插嘴 = 最扰民的那类 -> **直接归零**。
 # 社区原话:「最扰民」「人写的东西是有自己的思想的, AI 呢? 它没有哦」。
 MAX_COMMENTS_PER_DAY = _num("PICKCAT_BOT_MAX_COMMENTS_PER_DAY", 0)
+# 主动池 = 发主题帖 + 顶层盖楼, 合计上限(作者定的天花板: 帖子至多 2 条, 一般也不会发)
+MAX_PROACTIVE_PER_DAY = _num("PICKCAT_BOT_MAX_PROACTIVE_PER_DAY", 2)
 # 总回复池也压到 3 条/天(原来 12)。**保号优先于活跃度**。
-MAX_REPLIES_PER_DAY = _num("PICKCAT_BOT_MAX_REPLIES_PER_DAY", 3)
+MAX_REPLIES_PER_DAY = _num("PICKCAT_BOT_MAX_REPLIES_PER_DAY", 10)
 # --- 给"有人回我"留的名额 (2026-11-03 22:xx 加) ---
 # 背景: 每天 12 条回复额度是**一个池子**, 反应式(有人回我) 和主动式(我自选话题)
 # 抢同一个池子。实测 11-03: 额度在 08:48 就被花光 (其中主动式 8 条), 而当天
@@ -123,7 +125,7 @@ MAX_REPLIES_PER_DAY = _num("PICKCAT_BOT_MAX_REPLIES_PER_DAY", 3)
 # 11-02 只有 6 次), 拿 9 条预留能覆盖常态; 主动式留 3 条也和"评新帖"那个
 # 3 条/天的评论额度对称 (两条都是"我自己挑的"非必需产出)。
 # 全部 3 条都留给"有人回我"(反应式); 主动式(我自选话题去答) = 0 条。
-REACTIVE_RESERVE = _num("PICKCAT_BOT_REACTIVE_RESERVE", 3)
+REACTIVE_RESERVE = _num("PICKCAT_BOT_REACTIVE_RESERVE", 10)
 # 同一个帖里最多回几条(含楼中楼) —— 社区明确提了"楼中楼也适当少点"
 MAX_REPLIES_PER_TOPIC = _num("PICKCAT_BOT_MAX_REPLIES_PER_TOPIC", 1)
 
@@ -133,10 +135,10 @@ MAX_REPLIES_PER_TOPIC = _num("PICKCAT_BOT_MAX_REPLIES_PER_TOPIC", 1)
 #   TOPIC_CREATE: 10 条/24h 滚动窗 (实测 reasonDetails)
 # 机器人份额刻意压得很低, 把大部分额度留给号主自由发言。
 # 社区 2026-11-04 的反馈:「最扰民」「人写的东西是有自己的思想的」+ 移除回复/禁言处罚。
-PLATFORM_REPLY_LIMIT_PER_DAY = _num("PICKCAT_PLATFORM_REPLY_LIMIT", 15)
+PLATFORM_REPLY_LIMIT_PER_DAY = _num("PICKCAT_PLATFORM_REPLY_LIMIT", 50)
 PLATFORM_TOPIC_LIMIT_PER_DAY = _num("PICKCAT_PLATFORM_TOPIC_LIMIT", 10)
 # 机器人自己的上限(占平台上限的一小部分)
-MAX_TOPICS_PER_DAY = _num("PICKCAT_BOT_MAX_TOPICS_PER_DAY", 0)      # 主动发帖 = 0(最显眼)
+MAX_TOPICS_PER_DAY = _num("PICKCAT_BOT_MAX_TOPICS_PER_DAY", 2)
 # 两次写操作最小间隔(秒) —— 提别太快, 别看着像刷屏
 WRITE_INTERVAL = _num("PICKCAT_BOT_WRITE_INTERVAL", 30.0, float)
 # 每小时最多写几条(频率闸门)
@@ -1590,8 +1592,10 @@ def cmd_limits(c, args):
     print(f"  {'回复(含楼中楼)':<18}{PLATFORM_REPLY_LIMIT_PER_DAY:>12}"
           f"{MAX_REPLIES_PER_DAY:>12}{max(0, PLATFORM_REPLY_LIMIT_PER_DAY - MAX_REPLIES_PER_DAY):>10}")
     print(f"  {'发主题帖':<19}{PLATFORM_TOPIC_LIMIT_PER_DAY:>12}"
-          f"{MAX_TOPICS_PER_DAY:>12}{max(0, PLATFORM_TOPIC_LIMIT_PER_DAY - MAX_TOPICS_PER_DAY):>10}")
+          f"{min(MAX_TOPICS_PER_DAY, MAX_PROACTIVE_PER_DAY):>12}"
+          f"{max(0, PLATFORM_TOPIC_LIMIT_PER_DAY - min(MAX_TOPICS_PER_DAY, MAX_PROACTIVE_PER_DAY)):>10}")
     print(f"  {'评论(去陌生帖插嘴)':<17}{'(同回复池)':>12}{MAX_COMMENTS_PER_DAY:>12}{'-':>10}")
+    print(f"  {'主动池(发帖+盖楼)':<16}{'-':>12}{MAX_PROACTIVE_PER_DAY:>12}{'-':>10}")
     print(f"  {'每帖顶层评论':<18}{'-':>12}{MAX_TOP_LEVEL:>12}{'-':>10}")
     print(f"  {'每帖回复(含楼中楼)':<17}{'-':>12}{MAX_REPLIES_PER_TOPIC:>12}{'-':>10}")
     print(f"  {'每小时写操作':<19}{'-':>12}{MAX_WRITES_PER_HOUR:>12}{'-':>10}")
