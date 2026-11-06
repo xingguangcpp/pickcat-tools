@@ -162,3 +162,7 @@
 ## 2026-11-05 20:47:56
 
 - `GET /api/v1/session` 字段路径变化: 消失 `silence.publicReasonDetail`, `silence.until`, `user.silence`
+
+## 2026-11-06 20:00:21
+
+- `GET /api/v1/topics/{tid}` 字段路径变化: 新增 `viewerCapabilities.canRequestDuplicate`
