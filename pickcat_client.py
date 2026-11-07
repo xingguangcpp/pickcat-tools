@@ -1156,12 +1156,27 @@ class PickcatClient:
             )
             return {"dry_run": True, "idempotency_key": key, "body": body}
         self._throttle()
-        resp = self._request(
-            "POST",
-            POST_PATH,
-            json_body=body,
-            extra_headers={"Idempotency-Key": key},
-        )
+        try:
+            resp = self._request(
+                "POST",
+                POST_PATH,
+                json_body=body,
+                extra_headers={"Idempotency-Key": key},
+            )
+        except Exception as e:
+            # 序号已被消耗, 但请求没成功 -> **也要落账本**;
+            # 否则审计里会留一个说不清的"序号缺口"(看着像凭空消失)。
+            if watermark and seq:
+                ledger_append({
+                    "seq": seq, "kind": "reply",
+                    "channel": (channel or ("comment" if reply_to_post_number in (None, 1) else "reply")),
+                    "topicId": topic_id, "postId": None, "submissionId": None,
+                    "status": "REQUEST_FAILED",
+                    "text": wm_strip(markdown)[:80],
+                    "error": str(e)[:120],
+                    "at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                })
+            raise
         if watermark and isinstance(resp, dict):
             ledger_append(
                 {
@@ -1214,12 +1229,27 @@ class PickcatClient:
             )
             return {"dry_run": True, "idempotency_key": key, "body": body}
         self._throttle()
-        resp = self._request(
-            "POST",
-            POST_PATH,
-            json_body=body,
-            extra_headers={"Idempotency-Key": key},
-        )
+        try:
+            resp = self._request(
+                "POST",
+                POST_PATH,
+                json_body=body,
+                extra_headers={"Idempotency-Key": key},
+            )
+        except Exception as e:
+            # 序号已被消耗, 但请求没成功 -> **也要落账本**;
+            # 否则审计里会留一个说不清的"序号缺口"(看着像凭空消失)。
+            if watermark and seq:
+                ledger_append({
+                    "seq": seq, "kind": "reply",
+                    "channel": (channel or ("comment" if reply_to_post_number in (None, 1) else "reply")),
+                    "topicId": topic_id, "postId": None, "submissionId": None,
+                    "status": "REQUEST_FAILED",
+                    "text": wm_strip(markdown)[:80],
+                    "error": str(e)[:120],
+                    "at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                })
+            raise
         if watermark and isinstance(resp, dict):
             eff_channel = channel or ("comment" if reply_to_post_number in (None, 1) else "reply")
             rec = {

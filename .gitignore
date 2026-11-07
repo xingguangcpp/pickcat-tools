@@ -37,3 +37,6 @@ accounts/*.env
 .probe_changelog_key
 # 分组维度锁存 (各机一份: 用来保证分组维度跨轮次不翻转)
 .probe_discriminators.json
+
+# 语录库(生成物, 可用 pickcat_quotes.py --save 重建)
+.quotes_*.json

@@ -56,8 +56,9 @@ MAX_CANDIDATES = 5
 # 注意: 用 (?<![A-Za-z0-9]) 而不是 \b —— Python 的 \b 在中文里失效,
 # 像"大AI时代""用AI做"这种中文紧邻的写法匹配不到 (大 和 A 都是 \w, 中间没有边界)。
 # 但也不能去掉前视断言, 否则 "email"/"said" 里的 ai 会误命中。
-# 固定梗(作者指定): 在 AI 相关帖子里发这一句。放 .env 里可随时改(PICKCAT_QUIP_TEXT)。
-QUIP_TEXT_DEFAULT = "AI照这个速度发展下去，不出三个月人类就会进入2027年"
+# 语录来源: 本人主号 —— 只有本人**手写**的旧回复才算语录。
+# 带隐形水印的 = 当时是 AI 写的, 不能进语录库: 那等于把被处罚过的内容换个号重新上架。
+QUOTE_UID = "01a0d338-72f2-731e-a0c5-10724fc89813"
 
 AI_RE = re.compile(
     r"(?<![A-Za-z0-9])(ai|agi|llm|gpt|agent)(?![A-Za-z0-9])|大模型|智能体|提示词|prompt|"
@@ -1602,65 +1603,93 @@ def cmd_limits(c, args):
     print("=" * 64)
 
 
-def _quip_text():
-    """固定梗的正文: 优先 .env 的 PICKCAT_QUIP_TEXT, 否则用内置默认。"""
-    return (load_env().get("PICKCAT_QUIP_TEXT") or "").strip() or QUIP_TEXT_DEFAULT
-
-
 def cmd_quip_scan(c, args):
-    """列出"AI 相关"且还没被固定梗刷过的帖子 (先预览, 再决定发不发)。
+    """给"选材"用的预览: AI 相关帖子 + 它们的正文 + 本人语录库。
 
-    判据用 AI_RE (含社区本地叫法 boxplay / PikAgent / kn界), 与 check 的候选同源。
+    分工: 工具**取材 + 执行 + 护栏**, 由 LLM(或本人)决定**哪一句配得上哪个帖**。
+    关键词打分只作提示, 语义贴合度最终靠人/模型判断 —— 宁可少发, 不要硬凑。
     """
+    from pickcat_quotes import build_corpus, load_corpus, match_quotes
+
     st = load_state()
     uid = client_uid(c)
-    text = _quip_text()
+    corpus = load_corpus(QUOTE_UID)
+    if not corpus or args.rebuild:
+        corpus = build_corpus(c, QUOTE_UID)
+        from pickcat_quotes import save_corpus
+        save_corpus(QUOTE_UID, corpus)
     feed = c._request("GET", f"/api/v1/topics?limit={args.limit}")
     items = (feed.get("items") if isinstance(feed, dict) else feed) or []
-    print("=" * 66)
-    print(f"【固定梗预览】{text}")
-    print(f"  账号: {(c.get_session().get('user') or {}).get('username')} | 今日回复 "
-          f"{st.get('daily', {}).get('replies', 0)}/{MAX_REPLIES_PER_DAY}")
-    print("=" * 66)
+    print("=" * 70)
+    print(f"【选材】语录库 {len(corpus)} 条(全部来自本人手写的旧回复) | "
+          f"账号 {(c.get_session().get('user') or {}).get('username')} | "
+          f"今日回复 {st.get('daily', {}).get('replies', 0)}/{MAX_REPLIES_PER_DAY}")
+    print("=" * 70)
     n = 0
     for it in items:
         tid = it.get("id")
         title = it.get("title", "")
-        excerpt = strip_html(it.get("excerpt") or "")[:90]
+        excerpt = strip_html(it.get("excerpt") or "")[:120]
         if not tid or not AI_RE.search(title + " " + excerpt):
             continue
         done_here = my_reply_count_in_topic(c, tid, uid)
         if done_here >= MAX_REPLIES_PER_TOPIC:
-            mark = "已刷过"
-        else:
-            mark = "可发"
-            n += 1
+            print(f"  [已刷过] 《{title[:36]}》")
+            continue
+        n += 1
+        print(f"\n  ── [{n}] 《{title[:40]}》 by {(it.get('author') or {}).get('username')}")
+        print(f"     topicId={tid}")
+        print(f"     摘要: {excerpt}")
+        try:
+            fp = (c.get_topic(tid) or {}).get("firstPost") or {}
+            root = strip_html(fp.get("cookedHtml") or "")[:220].replace("\n", " / ")
+            if root:
+                print(f"     首楼: {root}")
+        except Exception:
+            pass
         try:
             posts = posts_of(c, tid, limit=40)
             floors = sorted({p.get("postNumber") for p in posts if (p.get("postNumber") or 0) >= 2})
-            hint = ("楼中楼可选 #" + ",".join(str(f) for f in floors[:4])) if floors else "只有首楼(需顶层权限)"
+            print(f"     楼中楼可选: " + (",".join(str(f) for f in floors[:5]) if floors else "无(只有首楼)"))
         except Exception:
             floors = []
-            hint = "楼层读取失败"
-        print(f"  [{mark}] 《{title[:34]}》 by {(it.get('author') or {}).get('username')}")
-        print(f"        {excerpt}")
-        print(f"        topicId={tid} | {hint} | 我已回 {done_here} 条")
-    print("-" * 66)
-    print(f"  可发 {n} 个 (受每日 {MAX_REPLIES_PER_DAY} / 每小时 {MAX_WRITES_PER_HOUR} / "
-          f"每帖 {MAX_REPLIES_PER_TOPIC} 限制)")
-    print("  发之前建议先跑 --dry-run 预览; 确认无误再用 quip 命令逐个发。")
-    print("=" * 66)
+        cands = match_quotes(corpus, title, excerpt, topn=3)
+        if cands:
+            print("     关键词候选(仅提示, 语义要自己判断):")
+            for q in cands:
+                print(f"       {q['id']} [{q['score']}分] {q['text'][:56]}  <<《{q['topicTitle'][:16]}》")
+        else:
+            print("     (关键词没匹配到合适的语录 —— 可能真没有, 就别发)")
+    print("\n" + "-" * 70)
+    print(f"  待选 {n} 个帖子 | 语录库 {len(corpus)} 条, 完整列表:")
+    for q in corpus:
+        print(f"    {q['id']} ({q['len']}字) 《{q['topicTitle'][:20]}》 {q['text'][:56]}")
+    print("-" * 70)
+    print(f"  发法: pickcat_bot.py --account aibot quip --topic-id <id> --reply-to <楼> --quote <语录id>")
+    print("=" * 70)
 
 
 def cmd_quip(c, args):
-    """在指定帖子里发固定梗。全部护栏(等级/配额/每日/每帖/每小时/间隔)照常生效。"""
+    """在指定帖子里发**本人旧回复里的语录**(或自定义正文)。全部护栏照常生效。"""
     import types as _types
 
-    body = args.body or _quip_text()
+    from pickcat_quotes import load_corpus
+    body = args.body or ""
+    if args.quote:
+        corpus = load_corpus(QUOTE_UID)
+        hit = next((q for q in corpus if q["id"] == args.quote), None)
+        if not hit:
+            print(f"找不到语录 {args.quote}; 先跑 quip-scan 看语录列表", file=sys.stderr)
+            sys.exit(2)
+        body = hit["text"]
+        if args.attrib and hit.get("url"):
+            body += f"\n（引自我的旧回复：{hit['url']}）"
+    if not body:
+        print("没有内容: 给 --quote <语录id> 或 --body", file=sys.stderr)
+        sys.exit(2)
     if args.dry_run:
-        print(f"[dry-run] 会在 {args.topic_id} 的 #{args.reply_to} 楼下说:")
+        print(f"[dry-run] {args.topic_id} 的 #{args.reply_to} 楼:")
         print(f"          {body}")
-        print("          (护栏未跑; 真发时会逐条检查)")
         return
     a = _types.SimpleNamespace(topic_id=args.topic_id, reply_to=args.reply_to,
                                body=body, title=args.title or "", notify=None)
@@ -1947,13 +1976,16 @@ def main():
     sub.add_parser("verify", help="验证水印能否在服务端存活")
     sub.add_parser("refresh", help="复查未完成投稿的审核状态 + 更新配额")
     sub.add_parser("quota", help="查看配额限制与恢复时间")
-    p = sub.add_parser("quip-scan", help="预览: 哪些 AI 帖可以发固定梗")
+    p = sub.add_parser("quip-scan", help="选材: AI 帖 + 正文 + 本人语录库")
     p.add_argument("--limit", type=int, default=40)
+    p.add_argument("--rebuild", action="store_true", help="重建语录库")
     p = sub.add_parser("quip", help="在指定帖子里发固定梗(护栏照常生效)")
     p.add_argument("--topic-id", required=True)
     p.add_argument("--reply-to", dest="reply_to", type=int, default=2,
                    help="回复到第几楼; 默认 2(楼中楼, 遵守'每帖顶层评论=0')")
-    p.add_argument("--body", default="", help="覆盖默认梗文本")
+    p.add_argument("--body", default="", help="直接给正文(不给就用 --quote)")
+    p.add_argument("--quote", default="", help="语录 id (q001...), 从语录库里挑")
+    p.add_argument("--attrib", action="store_true", help="末尾附上原回复链接(标明是引用本人旧回复)")
     p.add_argument("--title", default="")
     p.add_argument("--dry-run", action="store_true")
     sub.add_parser("limits", help="摊开限制总表: 平台上限/机器人份额/号主余量/今日用量")
