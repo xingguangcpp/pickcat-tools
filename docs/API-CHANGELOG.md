@@ -170,3 +170,8 @@
 ## 2026-11-07 18:07:51
 
 - `GET /api/v1/users/{uid}/following?limit=5` 条目数 3 → 4
+
+## 2026-11-07 21:10:16
+
+- `GET /api/v1/topics/{tid}` 字段路径变化: 新增 `collection.id`, `collection.name`
+- `GET /api/v1/users/{uid}/following?limit=5` 条目数 4 → 5
