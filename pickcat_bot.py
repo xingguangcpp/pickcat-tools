@@ -56,6 +56,9 @@ MAX_CANDIDATES = 5
 # 注意: 用 (?<![A-Za-z0-9]) 而不是 \b —— Python 的 \b 在中文里失效,
 # 像"大AI时代""用AI做"这种中文紧邻的写法匹配不到 (大 和 A 都是 \w, 中间没有边界)。
 # 但也不能去掉前视断言, 否则 "email"/"said" 里的 ai 会误命中。
+# 固定梗(作者指定): 在 AI 相关帖子里发这一句。放 .env 里可随时改(PICKCAT_QUIP_TEXT)。
+QUIP_TEXT_DEFAULT = "AI照这个速度发展下去，不出三个月人类就会进入2027年"
+
 AI_RE = re.compile(
     r"(?<![A-Za-z0-9])(ai|agi|llm|gpt|agent)(?![A-Za-z0-9])|大模型|智能体|提示词|prompt|"
     r"深度学习|神经网络|机器学习|openai|claude|deepseek|chatbot|自动化|机器人|豆包|"
@@ -87,7 +90,15 @@ _ENV = load_env()
 
 
 def _num(key, default, cast=int):
-    v = os.environ.get(key) or _ENV.get(key)
+    """取数值配置: 进程环境变量 > 账号档案的 .env > 根 .env > 默认值。
+
+    走 pickcat_client._read_dotenv() 是因为那边做了**档案分层**(accounts/<名字>.env 优先),
+    这样主号和小号可以各有一套上限与开关。
+    """
+    from pickcat_client import _read_dotenv as _layered
+    v = os.environ.get(key)
+    if v is None:
+        v = _layered().get(key)
     if v is None or str(v).strip() == "":
         return default
     try:
@@ -96,60 +107,34 @@ def _num(key, default, cast=int):
         return default
 
 
-# 每日上限, 防刷屏。评论(评新帖)是刷量方向, 卡得紧; 回复(回具体楼层)是"嘴替"本职,
-# 卡太死会让人干等着, 所以给得宽 —— 平台真正的限制在发帖额度上, 见 README"配额"一节。
-# 2026-11-04 按社区反馈("最扰民")重订: 主动去陌生帖插嘴 = 最扰民的那类 -> **直接归零**。
-# 社区原话:「最扰民」「人写的东西是有自己的思想的, AI 呢? 它没有哦」。
-MAX_COMMENTS_PER_DAY = _num("PICKCAT_BOT_MAX_COMMENTS_PER_DAY", 0)
-# 主动池 = 发主题帖 + 顶层盖楼, 合计上限(作者定的天花板: 帖子至多 2 条, 一般也不会发)
-# 主动池(发帖+盖楼合计): 作者定稿"非必要不发, 默认0" —— 0 = 主动发言一律不发
-MAX_PROACTIVE_PER_DAY = _num("PICKCAT_BOT_MAX_PROACTIVE_PER_DAY", 0)
-# 每帖顶层评论: 作者定稿"非必要不发, 默认0" —— 0 = 一律不发(不设限请给个大数)
-MAX_TOP_LEVEL = _num("PICKCAT_BOT_MAX_TOP_LEVEL", 0)
-# 总回复池也压到 3 条/天(原来 12)。**保号优先于活跃度**。
-MAX_REPLIES_PER_DAY = _num("PICKCAT_BOT_MAX_REPLIES_PER_DAY", 10)
-# --- 给"有人回我"留的名额 (2026-11-03 22:xx 加) ---
-# 背景: 每天 12 条回复额度是**一个池子**, 反应式(有人回我) 和主动式(我自选话题)
-# 抢同一个池子。实测 11-03: 额度在 08:48 就被花光 (其中主动式 8 条), 而当天
-# 真正的"有人回我"是 11:42/13:34/17:42/21:13/21:52 才陆续到 —— 于是一个人没回上,
-# 之后连续 8 轮全是零输出 (额度 12/12 已满)。
-#
-# 根因不是"额度不够", 是**额度用在了错的时间**: 真·回我的需求是**双峰**的
-# (实测 10-12 点 15 条、20-21 点 12 条, 而 00-09 点只有 7 条), 主动式内容
-# 却在需求低谷的凌晨被发掉了。
-#
-# 修法: 把"主动式"(我自选话题去答) 单独限量, 剩下的名额**预留给反应式**。
-# 反应式(有人回我) 不受这个限制 —— 它直接吃总池子的 12 条。
-# 注意用户定的硬上限 (每日回复 <= 12) 一条没动: 总量仍然 <= 12, 只是把
-# 12 条里的 9 条**优先**给真正回我的人。
-#
-# 为什么是 9 而不是 8: 反应式需求实测是**双峰**的 (11-01 有 19 次要答,
-# 11-02 只有 6 次), 拿 9 条预留能覆盖常态; 主动式留 3 条也和"评新帖"那个
-# 3 条/天的评论额度对称 (两条都是"我自己挑的"非必需产出)。
-# 全部 3 条都留给"有人回我"(反应式); 主动式(我自选话题去答) = 0 条。
-REACTIVE_RESERVE = _num("PICKCAT_BOT_REACTIVE_RESERVE", 10)
-# 同一个帖里最多回几条(含楼中楼) —— 社区明确提了"楼中楼也适当少点"
-MAX_REPLIES_PER_TOPIC = _num("PICKCAT_BOT_MAX_REPLIES_PER_TOPIC", 1)
+def reload_limits():
+    """档案切换后**重新解析**上限。
 
-# --- 平台硬上限 vs 机器人的份额 (2026-11-04 重订) ---
-# 平台对写操作有硬上限, 这些是**号主的**, 机器人只能占其中一小份:
-#   TOPIC_REPLY : 15 条/天 (用户告知)
-#   TOPIC_CREATE: 10 条/24h 滚动窗 (实测 reasonDetails)
-# 机器人份额刻意压得很低, 把大部分额度留给号主自由发言。
-# 社区 2026-11-04 的反馈:「最扰民」「人写的东西是有自己的思想的」+ 移除回复/禁言处罚。
-PLATFORM_REPLY_LIMIT_PER_DAY = _num("PICKCAT_PLATFORM_REPLY_LIMIT", 50)
-PLATFORM_TOPIC_LIMIT_PER_DAY = _num("PICKCAT_PLATFORM_TOPIC_LIMIT", 10)
-# 机器人自己的上限(占平台上限的一小部分)
-MAX_TOPICS_PER_DAY = _num("PICKCAT_BOT_MAX_TOPICS_PER_DAY", 2)
-# 两次写操作最小间隔(秒) —— 提别太快, 别看着像刷屏
-WRITE_INTERVAL = _num("PICKCAT_BOT_WRITE_INTERVAL", 30.0, float)
-# 每小时最多写几条(频率闸门)
-MAX_WRITES_PER_HOUR = _num("PICKCAT_BOT_MAX_WRITES_PER_HOUR", 2)
-# 号主今天自己已经发了 >= 这个数, 机器人本轮让路闭嘴(把余量全留给号主)
-OWNER_ACTIVITY_SOFT_CAP = _num("PICKCAT_BOT_OWNER_SOFT_CAP", 3)
-# 主动式(自选话题) 最多能用掉多少条 = 总池子 - 给反应式预留的
-MAX_PROACTIVE_REPLIES_PER_DAY = max(0, MAX_REPLIES_PER_DAY - REACTIVE_RESERVE)
-# 两次写操作最小间隔(秒)
+    这些常量在 import 时求值, 而 --account 是在 main() 里之后才设的 ——
+    不重新解析的话, 小号档案自己的 .env 里的上限/开关不会生效。
+    """
+    global MAX_COMMENTS_PER_DAY, MAX_REPLIES_PER_DAY, MAX_TOP_LEVEL
+    global MAX_REPLIES_PER_TOPIC, MAX_PROACTIVE_PER_DAY, MAX_TOPICS_PER_DAY
+    global MAX_WRITES_PER_HOUR, WRITE_INTERVAL, OWNER_ACTIVITY_SOFT_CAP
+    global REACTIVE_RESERVE, MAX_PROACTIVE_REPLIES_PER_DAY
+    global PLATFORM_REPLY_LIMIT_PER_DAY, PLATFORM_TOPIC_LIMIT_PER_DAY
+    MAX_COMMENTS_PER_DAY = _num("PICKCAT_BOT_MAX_COMMENTS_PER_DAY", 0)
+    MAX_REPLIES_PER_DAY = _num("PICKCAT_BOT_MAX_REPLIES_PER_DAY", 10)
+    MAX_TOP_LEVEL = _num("PICKCAT_BOT_MAX_TOP_LEVEL", 0)
+    MAX_REPLIES_PER_TOPIC = _num("PICKCAT_BOT_MAX_REPLIES_PER_TOPIC", 1)
+    MAX_TOPICS_PER_DAY = _num("PICKCAT_BOT_MAX_TOPICS_PER_DAY", 2)
+    MAX_PROACTIVE_PER_DAY = _num("PICKCAT_BOT_MAX_PROACTIVE_PER_DAY", 0)
+    MAX_WRITES_PER_HOUR = _num("PICKCAT_BOT_MAX_WRITES_PER_HOUR", 2)
+    WRITE_INTERVAL = _num("PICKCAT_BOT_WRITE_INTERVAL", 30.0, float)
+    OWNER_ACTIVITY_SOFT_CAP = _num("PICKCAT_BOT_OWNER_SOFT_CAP", 3)
+    REACTIVE_RESERVE = _num("PICKCAT_BOT_REACTIVE_RESERVE", 10)
+    PLATFORM_REPLY_LIMIT_PER_DAY = _num("PICKCAT_PLATFORM_REPLY_LIMIT", 50)
+    PLATFORM_TOPIC_LIMIT_PER_DAY = _num("PICKCAT_PLATFORM_TOPIC_LIMIT", 10)
+    MAX_PROACTIVE_REPLIES_PER_DAY = max(0, MAX_REPLIES_PER_DAY - REACTIVE_RESERVE)
+
+# import 时先按根 .env 初始化一份; 档案切换后 main() 会再调 reload_limits() 重解析。
+reload_limits()
+
 # "回我"的历史楼层最多回溯多少天 (再早的回信不该翻出来回)
 REPLY_HORIZON_DAYS = _num("PICKCAT_BOT_REPLY_HORIZON_DAYS", 7)
 # --- 连发回答的合并阈值 ---
@@ -1617,6 +1602,71 @@ def cmd_limits(c, args):
     print("=" * 64)
 
 
+def _quip_text():
+    """固定梗的正文: 优先 .env 的 PICKCAT_QUIP_TEXT, 否则用内置默认。"""
+    return (load_env().get("PICKCAT_QUIP_TEXT") or "").strip() or QUIP_TEXT_DEFAULT
+
+
+def cmd_quip_scan(c, args):
+    """列出"AI 相关"且还没被固定梗刷过的帖子 (先预览, 再决定发不发)。
+
+    判据用 AI_RE (含社区本地叫法 boxplay / PikAgent / kn界), 与 check 的候选同源。
+    """
+    st = load_state()
+    uid = client_uid(c)
+    text = _quip_text()
+    feed = c._request("GET", f"/api/v1/topics?limit={args.limit}")
+    items = (feed.get("items") if isinstance(feed, dict) else feed) or []
+    print("=" * 66)
+    print(f"【固定梗预览】{text}")
+    print(f"  账号: {(c.get_session().get('user') or {}).get('username')} | 今日回复 "
+          f"{st.get('daily', {}).get('replies', 0)}/{MAX_REPLIES_PER_DAY}")
+    print("=" * 66)
+    n = 0
+    for it in items:
+        tid = it.get("id")
+        title = it.get("title", "")
+        excerpt = strip_html(it.get("excerpt") or "")[:90]
+        if not tid or not AI_RE.search(title + " " + excerpt):
+            continue
+        done_here = my_reply_count_in_topic(c, tid, uid)
+        if done_here >= MAX_REPLIES_PER_TOPIC:
+            mark = "已刷过"
+        else:
+            mark = "可发"
+            n += 1
+        try:
+            posts = posts_of(c, tid, limit=40)
+            floors = sorted({p.get("postNumber") for p in posts if (p.get("postNumber") or 0) >= 2})
+            hint = ("楼中楼可选 #" + ",".join(str(f) for f in floors[:4])) if floors else "只有首楼(需顶层权限)"
+        except Exception:
+            floors = []
+            hint = "楼层读取失败"
+        print(f"  [{mark}] 《{title[:34]}》 by {(it.get('author') or {}).get('username')}")
+        print(f"        {excerpt}")
+        print(f"        topicId={tid} | {hint} | 我已回 {done_here} 条")
+    print("-" * 66)
+    print(f"  可发 {n} 个 (受每日 {MAX_REPLIES_PER_DAY} / 每小时 {MAX_WRITES_PER_HOUR} / "
+          f"每帖 {MAX_REPLIES_PER_TOPIC} 限制)")
+    print("  发之前建议先跑 --dry-run 预览; 确认无误再用 quip 命令逐个发。")
+    print("=" * 66)
+
+
+def cmd_quip(c, args):
+    """在指定帖子里发固定梗。全部护栏(等级/配额/每日/每帖/每小时/间隔)照常生效。"""
+    import types as _types
+
+    body = args.body or _quip_text()
+    if args.dry_run:
+        print(f"[dry-run] 会在 {args.topic_id} 的 #{args.reply_to} 楼下说:")
+        print(f"          {body}")
+        print("          (护栏未跑; 真发时会逐条检查)")
+        return
+    a = _types.SimpleNamespace(topic_id=args.topic_id, reply_to=args.reply_to,
+                               body=body, title=args.title or "", notify=None)
+    return cmd_reply(c, a)
+
+
 def cmd_state(c, args):
     st = load_state()
     d = daily_guard(st, "replies")  # 跨天自动清零, 别显示昨天的残留
@@ -1897,6 +1947,15 @@ def main():
     sub.add_parser("verify", help="验证水印能否在服务端存活")
     sub.add_parser("refresh", help="复查未完成投稿的审核状态 + 更新配额")
     sub.add_parser("quota", help="查看配额限制与恢复时间")
+    p = sub.add_parser("quip-scan", help="预览: 哪些 AI 帖可以发固定梗")
+    p.add_argument("--limit", type=int, default=40)
+    p = sub.add_parser("quip", help="在指定帖子里发固定梗(护栏照常生效)")
+    p.add_argument("--topic-id", required=True)
+    p.add_argument("--reply-to", dest="reply_to", type=int, default=2,
+                   help="回复到第几楼; 默认 2(楼中楼, 遵守'每帖顶层评论=0')")
+    p.add_argument("--body", default="", help="覆盖默认梗文本")
+    p.add_argument("--title", default="")
+    p.add_argument("--dry-run", action="store_true")
     sub.add_parser("limits", help="摊开限制总表: 平台上限/机器人份额/号主余量/今日用量")
     p = sub.add_parser("notify", help="列出谁回了我(读通知, 比扫帖子准)")
     p.add_argument("--limit", type=int, default=30)
@@ -1905,6 +1964,7 @@ def main():
     if args.account:
         os.environ["PICKCAT_PROFILE"] = args.account
         print(f"[账号档案] {args.account}")
+    reload_limits()  # 档案切换后重新读上限(主号与小号可以各一套)
     c = build_client()
     try:
         {
@@ -1918,6 +1978,8 @@ def main():
             "verify": cmd_verify,
             "refresh": cmd_refresh,
             "quota": cmd_quota,
+        "quip-scan": cmd_quip_scan,
+        "quip": cmd_quip,
         "limits": cmd_limits,
         "notify": cmd_notify,
         }[args.cmd](c, args)

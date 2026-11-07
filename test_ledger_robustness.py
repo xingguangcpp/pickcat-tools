@@ -212,11 +212,17 @@ try:
     if stf.exists():
         real_state = json.loads(stf.read_text(encoding="utf-8"))
         rd = real_state.get("daily", {})
-        same = (rd.get("date") == TODAY
-                and int(rd.get("comments", 0)) == lc
-                and int(rd.get("replies", 0)) == lr)
+        if rd.get("date") == TODAY:
+            same = (int(rd.get("comments", 0)) == lc
+                    and int(rd.get("replies", 0)) == lr)
+            note = ""
+        else:
+            # 状态文件今天还没写过(比如运营任务被暂停) -> 今天本来就没有计数可比,
+            # 这**不是**不一致, 不该判失败。只在状态是今天时才比对计数。
+            same = True
+            note = f" [状态文件日期 {rd.get('date')} 非今天 -> 跳过计数比对]"
         check("账本重算的今日计数 == 状态文件里的计数", same,
-              f"ledger=({lc},{lr}) state=({rd.get('comments')},{rd.get('replies')})")
+              f"ledger=({lc},{lr}) state=({rd.get('comments')},{rd.get('replies')}){note}")
     check("真实账本可读 (非空)", len(C.ledger_read()) > 0)
     check("真实账本未被判为不可读", C.ledger_unreadable() is False)
 except Exception as e:

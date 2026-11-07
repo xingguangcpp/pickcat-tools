@@ -80,7 +80,38 @@ def _profile():
     return os.environ.get("PICKCAT_PROFILE") or "default"
 
 
+def _profile_env_path():
+    """当前账号档案的专属 .env (accounts/<名字>.env); 没有就返回 None。"""
+    prof = _profile()
+    if not prof or prof == "default":
+        return None
+    p = Path(__file__).resolve().parent / "accounts" / f"{prof}.env"
+    return p if p.exists() else None
+
+
 def _read_dotenv():
+    """读配置: 根 .env 打底, 再叠加**当前账号档案的** .env (档案优先)。
+
+    这样每个号可以有自己的开关与上限 —— 比如主号写操作关死, 小号单独开。
+    """
+    cfg = {}
+
+    def load(path):
+        if not path or not path.exists():
+            return
+        try:
+            for line in path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                cfg[k.strip()] = v.strip().strip('"').strip("'")
+        except Exception:
+            pass
+
+    load(Path(__file__).resolve().parent / ".env")
+    load(_profile_env_path())
+    return cfg
     cfg = {}
     f = Path(__file__).resolve().parent / ".env"
     if f.exists():

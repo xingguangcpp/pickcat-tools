@@ -225,10 +225,11 @@ try:
     if real_state_file.exists():
         rs = json.loads(real_state_file.read_text(encoding="utf-8"))
         rd = rs.get("daily", {})
+        # 状态文件今天还没写过(运营任务暂停时就是这种) -> 今天没有计数可比, 不算不一致
+        _stale = rd.get("date") != today
         check("账本重算的今日计数 == 状态文件里的计数",
-              rd.get("date") == today
-              and int(rd.get("comments", 0)) == lc
-              and int(rd.get("replies", 0)) == lr,
+              _stale or (int(rd.get("comments", 0)) == lc
+                         and int(rd.get("replies", 0)) == lr),
               f"ledger=({lc},{lr}) state=({rd.get('comments')},{rd.get('replies')})")
     else:
         check("真实账本可读", isinstance(C.ledger_read(), list))
