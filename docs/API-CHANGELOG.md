@@ -166,3 +166,7 @@
 ## 2026-11-06 20:00:21
 
 - `GET /api/v1/topics/{tid}` 字段路径变化: 新增 `viewerCapabilities.canRequestDuplicate`
+
+## 2026-11-07 18:07:51
+
+- `GET /api/v1/users/{uid}/following?limit=5` 条目数 3 → 4
