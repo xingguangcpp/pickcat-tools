@@ -175,3 +175,8 @@
 
 - `GET /api/v1/topics/{tid}` 字段路径变化: 新增 `collection.id`, `collection.name`
 - `GET /api/v1/users/{uid}/following?limit=5` 条目数 4 → 5
+
+## 2026-11-08 17:36:10
+
+- `GET /api/v1/users/{uid}` 响应结构变化: ['avatar', 'backgroundFileId', 'bio', 'createdAt', 'id', 'level', 'profileVersion', 'region', 'showFollowersList', 'showFollowingList', 'stats', 'username', 'viewerState'] → **['avatar', 'backgroundFileId', 'bio', 'createdAt', 'id', 'level', 'profileVersion', 'region', 'showFollowersList', 'showFollowingList', 'silence', 'stats', 'suspension', 'username', 'viewerState']**
+- `GET /api/v1/users/{uid}` 字段路径变化: 新增 `silence`, `suspension`
