@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-08 17:36:10",
+  "generatedAt": "2026-11-09 21:30:21",
   "serviceUp": true,
   "schemaVersion": 5,
   "probes": {
@@ -8,7 +8,7 @@
       "path": "/api/v1/topics?limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 117,
+      "latencyMs": 343,
       "keys": [
         "items",
         "pageInfo"
@@ -163,7 +163,7 @@
       "path": "/api/v1/topics/01a195a5-b39d-7709-ad7b-0494928c6dd3",
       "public": true,
       "status": 200,
-      "latencyMs": 111,
+      "latencyMs": 228,
       "keys": [
         "author",
         "closedAt",
@@ -269,7 +269,7 @@
       "path": "/api/v1/topics/01a195a5-b39d-7709-ad7b-0494928c6dd3/posts?limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 95,
+      "latencyMs": 421,
       "keys": [
         "items",
         "pageInfo"
@@ -294,7 +294,7 @@
       "path": "/api/v1/topics/01a195a5-b39d-7709-ad7b-0494928c6dd3/posts?limit=5&sort=latest",
       "public": true,
       "status": 200,
-      "latencyMs": 70,
+      "latencyMs": 129,
       "keys": [
         "items",
         "pageInfo"
@@ -319,7 +319,7 @@
       "path": "/api/v1/posts/01a1972c-0bef-7aa6-858c-d5938427dae4",
       "public": false,
       "status": 200,
-      "latencyMs": 66,
+      "latencyMs": 122,
       "keys": [
         "canEdit",
         "contentRole",
@@ -364,7 +364,7 @@
       "path": "/api/v1/tags",
       "public": true,
       "status": 200,
-      "latencyMs": 91,
+      "latencyMs": 108,
       "keys": [
         "items"
       ],
@@ -424,7 +424,7 @@
       "path": "/api/v1/tags?limit=20",
       "public": true,
       "status": 400,
-      "latencyMs": 92,
+      "latencyMs": 113,
       "code": "VALIDATION_FAILED",
       "errKeys": [
         "code",
@@ -443,7 +443,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813",
       "public": true,
       "status": 200,
-      "latencyMs": 82,
+      "latencyMs": 141,
       "keys": [
         "avatar",
         "backgroundFileId",
@@ -503,7 +503,7 @@
       "path": "/api/v1/post-submissions?contentRole=TOPIC_REPLY&status=PENDING",
       "public": false,
       "status": 200,
-      "latencyMs": 82,
+      "latencyMs": 87,
       "keys": [
         "items",
         "pageInfo"
@@ -528,7 +528,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/posts?role=reply&limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 80,
+      "latencyMs": 88,
       "keys": [
         "items",
         "pageInfo"
@@ -628,7 +628,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/posts?role=bogus",
       "public": true,
       "status": 400,
-      "latencyMs": 76,
+      "latencyMs": 104,
       "code": "VALIDATION_FAILED",
       "errKeys": [
         "code",
@@ -648,7 +648,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/followers?limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 101,
+      "latencyMs": 90,
       "keys": [
         "items",
         "pageInfo"
@@ -718,7 +718,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/following?limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 93,
+      "latencyMs": 112,
       "keys": [
         "items",
         "pageInfo"
@@ -788,7 +788,7 @@
       "path": "/api/v1/notifications?limit=10",
       "public": false,
       "status": 200,
-      "latencyMs": 179,
+      "latencyMs": 157,
       "keys": [
         "items",
         "pageInfo"
@@ -807,54 +807,34 @@
           "createdAt",
           "details",
           "details.actor",
-          "details.event",
-          "details.topic",
-          "id",
-          "readAt",
-          "type"
-        ],
-        [
-          "createdAt",
-          "details",
-          "details.actor",
           "details.post",
           "details.topic",
           "id",
           "readAt",
           "type"
-        ],
-        [
-          "createdAt",
-          "details",
-          "details.actor",
-          "details.userFollowId",
-          "id",
-          "readAt",
-          "type"
         ]
       ],
-      "itemVariants": 3,
+      "itemVariants": 1,
       "itemTypes": {
         "createdAt": "str",
         "details.actor": "object",
-        "details.userFollowId": "str",
+        "details.post": "object",
+        "details.topic": "object",
         "details": "object",
         "id": "str",
         "readAt": "null",
-        "type": "str",
-        "details.post": "object",
-        "details.topic": "object",
-        "details.event": "object"
+        "type": "str"
       },
       "itemGroups": {
         "discriminator": "type",
         "groups": {
-          "USER_FOLLOWED": {
+          "POST_LIKED": {
             "fields": [
               "createdAt",
               "details",
               "details.actor",
-              "details.userFollowId",
+              "details.post",
+              "details.topic",
               "id",
               "readAt",
               "type"
@@ -863,7 +843,8 @@
               "createdAt",
               "details",
               "details.actor",
-              "details.userFollowId",
+              "details.post",
+              "details.topic",
               "id",
               "readAt",
               "type"
@@ -871,7 +852,8 @@
             "types": {
               "createdAt": "str",
               "details.actor": "object",
-              "details.userFollowId": "str",
+              "details.post": "object",
+              "details.topic": "object",
               "details": "object",
               "id": "str",
               "readAt": "null",
@@ -909,70 +891,6 @@
               "readAt": "null",
               "type": "str"
             }
-          },
-          "POST_LIKED": {
-            "fields": [
-              "createdAt",
-              "details",
-              "details.actor",
-              "details.post",
-              "details.topic",
-              "id",
-              "readAt",
-              "type"
-            ],
-            "may": [
-              "createdAt",
-              "details",
-              "details.actor",
-              "details.post",
-              "details.topic",
-              "id",
-              "readAt",
-              "type"
-            ],
-            "types": {
-              "createdAt": "str",
-              "details.actor": "object",
-              "details.post": "object",
-              "details.topic": "object",
-              "details": "object",
-              "id": "str",
-              "readAt": "null",
-              "type": "str"
-            }
-          },
-          "TOPIC_EVENT": {
-            "fields": [
-              "createdAt",
-              "details",
-              "details.actor",
-              "details.event",
-              "details.topic",
-              "id",
-              "readAt",
-              "type"
-            ],
-            "may": [
-              "createdAt",
-              "details",
-              "details.actor",
-              "details.event",
-              "details.topic",
-              "id",
-              "readAt",
-              "type"
-            ],
-            "types": {
-              "createdAt": "str",
-              "details.actor": "object",
-              "details.event": "object",
-              "details.topic": "object",
-              "details": "object",
-              "id": "str",
-              "readAt": "str",
-              "type": "str"
-            }
           }
         }
       },
@@ -987,7 +905,7 @@
       "path": "/api/v1/works?limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 103,
+      "latencyMs": 102,
       "keys": [
         "items",
         "pageInfo"
@@ -1143,255 +1061,6 @@
               "viewCount": "int",
               "workName": "str"
             }
-          },
-          "NEMO": {
-            "fields": [
-              "author",
-              "author.avatar",
-              "author.id",
-              "author.username",
-              "coinCount",
-              "commentCount",
-              "createdAt",
-              "description",
-              "favoriteCount",
-              "forkEnable",
-              "id",
-              "isForked",
-              "lastSyncedAt",
-              "likeCount",
-              "operation",
-              "parentUuid",
-              "preview",
-              "published",
-              "screenshotCoverUrl",
-              "sourceUserId",
-              "sourceWorkId",
-              "type",
-              "updatedAt",
-              "viewCount",
-              "workName"
-            ],
-            "may": [
-              "author",
-              "author.avatar",
-              "author.id",
-              "author.username",
-              "coinCount",
-              "commentCount",
-              "createdAt",
-              "description",
-              "favoriteCount",
-              "forkEnable",
-              "id",
-              "isForked",
-              "lastSyncedAt",
-              "likeCount",
-              "operation",
-              "parentUuid",
-              "preview",
-              "published",
-              "screenshotCoverUrl",
-              "sourceUserId",
-              "sourceWorkId",
-              "type",
-              "updatedAt",
-              "viewCount",
-              "workName"
-            ],
-            "types": {
-              "author.avatar": "object",
-              "author.id": "str",
-              "author.username": "str",
-              "author": "object",
-              "coinCount": "int",
-              "commentCount": "int",
-              "createdAt": "str",
-              "description": "str",
-              "favoriteCount": "int",
-              "forkEnable": "bool",
-              "id": "str",
-              "isForked": "bool",
-              "lastSyncedAt": "str",
-              "likeCount": "int",
-              "operation": "str",
-              "parentUuid": "null",
-              "preview": "str",
-              "published": "bool",
-              "screenshotCoverUrl": "str",
-              "sourceUserId": "str",
-              "sourceWorkId": "str",
-              "type": "str",
-              "updatedAt": "str",
-              "viewCount": "int",
-              "workName": "str"
-            }
-          },
-          "KITTEN3": {
-            "fields": [
-              "author",
-              "author.avatar",
-              "author.id",
-              "author.username",
-              "coinCount",
-              "commentCount",
-              "createdAt",
-              "description",
-              "favoriteCount",
-              "forkEnable",
-              "id",
-              "isForked",
-              "lastSyncedAt",
-              "likeCount",
-              "operation",
-              "parentUuid",
-              "preview",
-              "published",
-              "screenshotCoverUrl",
-              "sourceUserId",
-              "sourceWorkId",
-              "type",
-              "updatedAt",
-              "viewCount",
-              "workName"
-            ],
-            "may": [
-              "author",
-              "author.avatar",
-              "author.id",
-              "author.username",
-              "coinCount",
-              "commentCount",
-              "createdAt",
-              "description",
-              "favoriteCount",
-              "forkEnable",
-              "id",
-              "isForked",
-              "lastSyncedAt",
-              "likeCount",
-              "operation",
-              "parentUuid",
-              "preview",
-              "published",
-              "screenshotCoverUrl",
-              "sourceUserId",
-              "sourceWorkId",
-              "type",
-              "updatedAt",
-              "viewCount",
-              "workName"
-            ],
-            "types": {
-              "author.avatar": "object",
-              "author.id": "str",
-              "author.username": "str",
-              "author": "object",
-              "coinCount": "int",
-              "commentCount": "int",
-              "createdAt": "str",
-              "description": "str",
-              "favoriteCount": "int",
-              "forkEnable": "bool",
-              "id": "str",
-              "isForked": "bool",
-              "lastSyncedAt": "str",
-              "likeCount": "int",
-              "operation": "str",
-              "parentUuid": "null",
-              "preview": "str",
-              "published": "bool",
-              "screenshotCoverUrl": "str",
-              "sourceUserId": "str",
-              "sourceWorkId": "str",
-              "type": "str",
-              "updatedAt": "str",
-              "viewCount": "int",
-              "workName": "str"
-            }
-          },
-          "WOOD": {
-            "fields": [
-              "author",
-              "author.avatar",
-              "author.id",
-              "author.username",
-              "coinCount",
-              "commentCount",
-              "createdAt",
-              "description",
-              "favoriteCount",
-              "forkEnable",
-              "id",
-              "isForked",
-              "lastSyncedAt",
-              "likeCount",
-              "operation",
-              "parentUuid",
-              "preview",
-              "published",
-              "screenshotCoverUrl",
-              "sourceUserId",
-              "sourceWorkId",
-              "type",
-              "updatedAt",
-              "viewCount",
-              "workName"
-            ],
-            "may": [
-              "author",
-              "author.avatar",
-              "author.id",
-              "author.username",
-              "coinCount",
-              "commentCount",
-              "createdAt",
-              "description",
-              "favoriteCount",
-              "forkEnable",
-              "id",
-              "isForked",
-              "lastSyncedAt",
-              "likeCount",
-              "operation",
-              "parentUuid",
-              "preview",
-              "published",
-              "screenshotCoverUrl",
-              "sourceUserId",
-              "sourceWorkId",
-              "type",
-              "updatedAt",
-              "viewCount",
-              "workName"
-            ],
-            "types": {
-              "author.avatar": "object",
-              "author.id": "str",
-              "author.username": "str",
-              "author": "object",
-              "coinCount": "int",
-              "commentCount": "int",
-              "createdAt": "str",
-              "description": "str",
-              "favoriteCount": "int",
-              "forkEnable": "bool",
-              "id": "str",
-              "isForked": "bool",
-              "lastSyncedAt": "str",
-              "likeCount": "int",
-              "operation": "str",
-              "parentUuid": "null",
-              "preview": "str",
-              "published": "bool",
-              "screenshotCoverUrl": "str",
-              "sourceUserId": "str",
-              "sourceWorkId": "str",
-              "type": "str",
-              "updatedAt": "str",
-              "viewCount": "int",
-              "workName": "str"
-            }
           }
         }
       },
@@ -1406,7 +1075,7 @@
       "path": "/api/v1/badges",
       "public": true,
       "status": 200,
-      "latencyMs": 77,
+      "latencyMs": 96,
       "keys": [
         "items"
       ],
@@ -1501,7 +1170,7 @@
       "path": "/api/v1/emoji-collections",
       "public": true,
       "status": 200,
-      "latencyMs": 84,
+      "latencyMs": 92,
       "keys": [
         "items",
         "page",
@@ -1582,7 +1251,7 @@
       "path": "/api/v1/emojis?collectionId=01a0e06b-7980-779b-8be6-e426048ed516",
       "public": true,
       "status": 200,
-      "latencyMs": 88,
+      "latencyMs": 111,
       "keys": [
         "items",
         "page",
@@ -1673,7 +1342,7 @@
       "path": "/api/v1/session",
       "public": false,
       "status": 200,
-      "latencyMs": 99,
+      "latencyMs": 112,
       "keys": [
         "createdAt",
         "expiresAt",
@@ -1706,7 +1375,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/topics?limit=5",
       "public": true,
       "status": 200,
-      "latencyMs": 81,
+      "latencyMs": 97,
       "keys": [
         "items",
         "pageInfo"
@@ -1969,7 +1638,7 @@
       "path": "/api/v1/post-submissions/01a1956c-c398-7b35-9ff2-626cd135b1dd",
       "public": false,
       "status": 200,
-      "latencyMs": 81,
+      "latencyMs": 93,
       "keys": [
         "baseRevision",
         "commentNumber",
@@ -2029,7 +1698,7 @@
       "path": "/api/v1/__probe_nonexistent__",
       "public": true,
       "status": 404,
-      "latencyMs": 60,
+      "latencyMs": 77,
       "code": "ROUTE_NOT_FOUND",
       "errKeys": [
         "code",
@@ -2046,7 +1715,7 @@
       "path": "/api/v1/posts?limit=5",
       "public": true,
       "status": 404,
-      "latencyMs": 58,
+      "latencyMs": 75,
       "code": "ROUTE_NOT_FOUND",
       "errKeys": [
         "code",
@@ -2063,7 +1732,7 @@
       "path": "/api/v1/topics?cursor=abc",
       "public": true,
       "status": 400,
-      "latencyMs": 91,
+      "latencyMs": 139,
       "code": "INVALID_CURSOR",
       "errKeys": [
         "code",
@@ -2081,7 +1750,7 @@
       "path": "/api/v1/topics/01a195a5-b39d-7709-ad7b-0494928c6dd3/posts?limit=5&sort=bogus",
       "public": true,
       "status": 400,
-      "latencyMs": 70,
+      "latencyMs": 106,
       "code": "VALIDATION_FAILED",
       "errKeys": [
         "code",
@@ -2101,7 +1770,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/posts?role=reply&sort=bogus",
       "public": true,
       "status": 400,
-      "latencyMs": 70,
+      "latencyMs": 98,
       "code": "VALIDATION_FAILED",
       "errKeys": [
         "code",
@@ -2120,7 +1789,7 @@
       "path": "/api/v1/notifications?limit=100",
       "public": true,
       "status": 400,
-      "latencyMs": 114,
+      "latencyMs": 91,
       "code": "VALIDATION_FAILED",
       "errKeys": [
         "code",
@@ -2140,7 +1809,7 @@
       "path": "/api/v1/notifications?limit=50",
       "public": false,
       "status": 200,
-      "latencyMs": 148,
+      "latencyMs": 161,
       "keys": [
         "items",
         "pageInfo"
@@ -2209,13 +1878,13 @@
       "itemTypes": {
         "createdAt": "str",
         "details.actor": "object",
-        "details.userFollowId": "str",
+        "details.post": "object",
+        "details.topic": "object",
         "details": "object",
         "id": "str",
         "readAt": "null",
         "type": "str",
-        "details.post": "object",
-        "details.topic": "object",
+        "details.userFollowId": "str",
         "details.event": "object",
         "details.work": "object",
         "details.comment": "object",
@@ -2224,12 +1893,13 @@
       "itemGroups": {
         "discriminator": "type",
         "groups": {
-          "USER_FOLLOWED": {
+          "POST_LIKED": {
             "fields": [
               "createdAt",
               "details",
               "details.actor",
-              "details.userFollowId",
+              "details.post",
+              "details.topic",
               "id",
               "readAt",
               "type"
@@ -2238,7 +1908,8 @@
               "createdAt",
               "details",
               "details.actor",
-              "details.userFollowId",
+              "details.post",
+              "details.topic",
               "id",
               "readAt",
               "type"
@@ -2246,7 +1917,8 @@
             "types": {
               "createdAt": "str",
               "details.actor": "object",
-              "details.userFollowId": "str",
+              "details.post": "object",
+              "details.topic": "object",
               "details": "object",
               "id": "str",
               "readAt": "null",
@@ -2285,13 +1957,12 @@
               "type": "str"
             }
           },
-          "POST_LIKED": {
+          "USER_FOLLOWED": {
             "fields": [
               "createdAt",
               "details",
               "details.actor",
-              "details.post",
-              "details.topic",
+              "details.userFollowId",
               "id",
               "readAt",
               "type"
@@ -2300,8 +1971,7 @@
               "createdAt",
               "details",
               "details.actor",
-              "details.post",
-              "details.topic",
+              "details.userFollowId",
               "id",
               "readAt",
               "type"
@@ -2309,11 +1979,10 @@
             "types": {
               "createdAt": "str",
               "details.actor": "object",
-              "details.post": "object",
-              "details.topic": "object",
+              "details.userFollowId": "str",
               "details": "object",
               "id": "str",
-              "readAt": "null",
+              "readAt": "str",
               "type": "str"
             }
           },
@@ -2447,41 +2116,6 @@
               "readAt": "str",
               "type": "str"
             }
-          },
-          "WORK_COMMENT_REPLY_CREATED": {
-            "fields": [
-              "createdAt",
-              "details",
-              "details.actor",
-              "details.comment",
-              "details.excerpt",
-              "details.work",
-              "id",
-              "readAt",
-              "type"
-            ],
-            "may": [
-              "createdAt",
-              "details",
-              "details.actor",
-              "details.comment",
-              "details.excerpt",
-              "details.work",
-              "id",
-              "readAt",
-              "type"
-            ],
-            "types": {
-              "createdAt": "str",
-              "details.actor": "object",
-              "details.comment": "object",
-              "details.excerpt": "str",
-              "details.work": "object",
-              "details": "object",
-              "id": "str",
-              "readAt": "str",
-              "type": "str"
-            }
           }
         }
       },
@@ -2496,7 +2130,7 @@
       "path": "/api/v1/topics?limit=5&sort=latest",
       "public": true,
       "status": 200,
-      "latencyMs": 100,
+      "latencyMs": 133,
       "keys": [
         "items",
         "pageInfo"
@@ -2651,7 +2285,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/followers?limit=5&cursor=abc",
       "public": true,
       "status": 400,
-      "latencyMs": 93,
+      "latencyMs": 105,
       "code": "VALIDATION_FAILED",
       "errKeys": [
         "code",
@@ -2672,7 +2306,7 @@
       "path": "/api/v1/emoji-collections/01a0e06b-7980-779b-8be6-e426048ed516/emojis",
       "public": true,
       "status": 404,
-      "latencyMs": 63,
+      "latencyMs": 72,
       "code": "ROUTE_NOT_FOUND",
       "errKeys": [
         "code",
@@ -2689,7 +2323,7 @@
       "path": "/api/v1/health",
       "public": true,
       "status": 200,
-      "latencyMs": 79,
+      "latencyMs": 101,
       "keys": [
         "service",
         "status",
@@ -2713,7 +2347,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/badges",
       "public": true,
       "status": 200,
-      "latencyMs": 77,
+      "latencyMs": 119,
       "keys": [
         "items"
       ],
@@ -2810,10 +2444,10 @@
     },
     "GET /api/v1/works/{wid}": {
       "label": "作品详情",
-      "path": "/api/v1/works/01a1ba68-fbf7-7fae-9ddf-fc79efcf9c62",
+      "path": "/api/v1/works/01a1c05f-6b78-7bc1-9a05-c0d4197d1994",
       "public": true,
       "status": 200,
-      "latencyMs": 82,
+      "latencyMs": 161,
       "keys": [
         "author",
         "coinCount",
@@ -2878,7 +2512,7 @@
       "path": "/api/v1/emoji-collections/01a0e06b-7980-779b-8be6-e426048ed516",
       "public": true,
       "status": 200,
-      "latencyMs": 98,
+      "latencyMs": 83,
       "keys": [
         "coverUrl",
         "createdAt",
@@ -2914,7 +2548,7 @@
       "path": "/api/v1/topics?limit=5&kind=bogus",
       "public": true,
       "status": 400,
-      "latencyMs": 53,
+      "latencyMs": 71,
       "code": "VALIDATION_FAILED",
       "errKeys": [
         "code",
@@ -2934,7 +2568,7 @@
       "path": "/api/v1/topics?limit=5&kind=DISCUSSION",
       "public": true,
       "status": 200,
-      "latencyMs": 74,
+      "latencyMs": 141,
       "keys": [
         "items",
         "pageInfo"
@@ -3089,7 +2723,7 @@
       "path": "/api/v1/works?limit=5&kind=DISCUSSION",
       "public": true,
       "status": 400,
-      "latencyMs": 77,
+      "latencyMs": 87,
       "code": "VALIDATION_FAILED",
       "errKeys": [
         "code",
@@ -3108,7 +2742,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/topics?limit=5&kind=DISCUSSION",
       "public": true,
       "status": 400,
-      "latencyMs": 76,
+      "latencyMs": 100,
       "code": "VALIDATION_FAILED",
       "errKeys": [
         "code",
@@ -3127,7 +2761,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/followers?limit=abc",
       "public": true,
       "status": 400,
-      "latencyMs": 55,
+      "latencyMs": 115,
       "code": "VALIDATION_FAILED",
       "errKeys": [
         "code",
@@ -3148,7 +2782,7 @@
       "path": "/api/v1/files?limit=1",
       "public": false,
       "status": 200,
-      "latencyMs": 81,
+      "latencyMs": 119,
       "keys": [
         "items",
         "pageInfo"
@@ -3205,10 +2839,10 @@
     },
     "GET /api/v1/files/{fid}": {
       "label": "文件详情(公开可读原图)",
-      "path": "/api/v1/files/01a1b615-2e68-7360-aad8-3dd0a73a3c0f",
+      "path": "/api/v1/files/01a1bb5e-4301-7339-82f3-ddfb7d9f69a9",
       "public": true,
       "status": 200,
-      "latencyMs": 1141,
+      "latencyMs": 337,
       "keys": [
         "raw"
       ],
@@ -3231,7 +2865,7 @@
       "path": "/api/v1/files/00000000-0000-0000-0000-000000000000",
       "public": true,
       "status": 404,
-      "latencyMs": 83,
+      "latencyMs": 76,
       "code": "FILE_NOT_FOUND",
       "errKeys": [
         "code",
@@ -3246,16 +2880,16 @@
     },
     "GET /api/v1/works/{wid}/comments": {
       "label": "作品评论列表",
-      "path": "/api/v1/works/01a1ba68-fbf7-7fae-9ddf-fc79efcf9c62/comments",
+      "path": "/api/v1/works/01a1c05f-6b78-7bc1-9a05-c0d4197d1994/comments",
       "public": true,
       "status": 200,
-      "latencyMs": 75,
+      "latencyMs": 140,
       "keys": [
         "items",
         "pageInfo"
       ],
       "keysFull": true,
-      "itemCount": 0,
+      "itemCount": 1,
       "hasNextPage": false,
       "fields": [
         "items:array",
@@ -3263,6 +2897,166 @@
         "pageInfo.nextCursor:null",
         "pageInfo:object"
       ],
+      "itemShapes": [
+        [
+          "author",
+          "author.avatar",
+          "author.id",
+          "author.username",
+          "children",
+          "commentNumber",
+          "cookedHtml",
+          "createdAt",
+          "deleted",
+          "editedAt",
+          "id",
+          "likeCount",
+          "pinned",
+          "plainText",
+          "replyCount",
+          "replyToCommentNumber",
+          "viewCount",
+          "viewerCapabilities",
+          "viewerCapabilities.canBookmark",
+          "viewerCapabilities.canDelete",
+          "viewerCapabilities.canEdit",
+          "viewerCapabilities.canLike",
+          "viewerCapabilities.canPin",
+          "viewerCapabilities.canReport",
+          "viewerState",
+          "viewerState.bookmarkId",
+          "viewerState.liked",
+          "workId"
+        ]
+      ],
+      "itemVariants": 1,
+      "itemTypes": {
+        "author.avatar": "object",
+        "author.id": "str",
+        "author.username": "str",
+        "author": "object",
+        "children": "array",
+        "commentNumber": "int",
+        "cookedHtml": "str",
+        "createdAt": "str",
+        "deleted": "bool",
+        "editedAt": "null",
+        "id": "str",
+        "likeCount": "int",
+        "pinned": "bool",
+        "plainText": "str",
+        "replyCount": "int",
+        "replyToCommentNumber": "null",
+        "viewCount": "int",
+        "viewerCapabilities.canBookmark": "bool",
+        "viewerCapabilities.canDelete": "bool",
+        "viewerCapabilities.canEdit": "bool",
+        "viewerCapabilities.canLike": "bool",
+        "viewerCapabilities.canPin": "bool",
+        "viewerCapabilities.canReport": "bool",
+        "viewerCapabilities": "object",
+        "viewerState.bookmarkId": "null",
+        "viewerState.liked": "bool",
+        "viewerState": "object",
+        "workId": "str"
+      },
+      "itemGroups": {
+        "discriminator": null,
+        "groups": {
+          "": {
+            "fields": [
+              "author",
+              "author.avatar",
+              "author.id",
+              "author.username",
+              "children",
+              "commentNumber",
+              "cookedHtml",
+              "createdAt",
+              "deleted",
+              "editedAt",
+              "id",
+              "likeCount",
+              "pinned",
+              "plainText",
+              "replyCount",
+              "replyToCommentNumber",
+              "viewCount",
+              "viewerCapabilities",
+              "viewerCapabilities.canBookmark",
+              "viewerCapabilities.canDelete",
+              "viewerCapabilities.canEdit",
+              "viewerCapabilities.canLike",
+              "viewerCapabilities.canPin",
+              "viewerCapabilities.canReport",
+              "viewerState",
+              "viewerState.bookmarkId",
+              "viewerState.liked",
+              "workId"
+            ],
+            "may": [
+              "author",
+              "author.avatar",
+              "author.id",
+              "author.username",
+              "children",
+              "commentNumber",
+              "cookedHtml",
+              "createdAt",
+              "deleted",
+              "editedAt",
+              "id",
+              "likeCount",
+              "pinned",
+              "plainText",
+              "replyCount",
+              "replyToCommentNumber",
+              "viewCount",
+              "viewerCapabilities",
+              "viewerCapabilities.canBookmark",
+              "viewerCapabilities.canDelete",
+              "viewerCapabilities.canEdit",
+              "viewerCapabilities.canLike",
+              "viewerCapabilities.canPin",
+              "viewerCapabilities.canReport",
+              "viewerState",
+              "viewerState.bookmarkId",
+              "viewerState.liked",
+              "workId"
+            ],
+            "types": {
+              "author.avatar": "object",
+              "author.id": "str",
+              "author.username": "str",
+              "author": "object",
+              "children": "array",
+              "commentNumber": "int",
+              "cookedHtml": "str",
+              "createdAt": "str",
+              "deleted": "bool",
+              "editedAt": "null",
+              "id": "str",
+              "likeCount": "int",
+              "pinned": "bool",
+              "plainText": "str",
+              "replyCount": "int",
+              "replyToCommentNumber": "null",
+              "viewCount": "int",
+              "viewerCapabilities.canBookmark": "bool",
+              "viewerCapabilities.canDelete": "bool",
+              "viewerCapabilities.canEdit": "bool",
+              "viewerCapabilities.canLike": "bool",
+              "viewerCapabilities.canPin": "bool",
+              "viewerCapabilities.canReport": "bool",
+              "viewerCapabilities": "object",
+              "viewerState.bookmarkId": "null",
+              "viewerState.liked": "bool",
+              "viewerState": "object",
+              "workId": "str"
+            }
+          }
+        }
+      },
       "headerValues": {
         "cache-control": "no-cache",
         "vary": "Origin",
@@ -3271,10 +3065,10 @@
     },
     "GET /api/v1/works/{wid}/comments/1": {
       "label": "作品评论(按楼号, 需登录)",
-      "path": "/api/v1/works/01a1ba68-fbf7-7fae-9ddf-fc79efcf9c62/comments/1",
+      "path": "/api/v1/works/01a1c05f-6b78-7bc1-9a05-c0d4197d1994/comments/1",
       "public": false,
       "status": 404,
-      "latencyMs": 87,
+      "latencyMs": 74,
       "code": "WORK_COMMENT_NOT_FOUND",
       "errKeys": [
         "code",
@@ -3290,10 +3084,10 @@
     },
     "GET /api/v1/works/{wid}/comments/0": {
       "label": "作品评论楼号非法(应泄露下限)",
-      "path": "/api/v1/works/01a1ba68-fbf7-7fae-9ddf-fc79efcf9c62/comments/0",
+      "path": "/api/v1/works/01a1c05f-6b78-7bc1-9a05-c0d4197d1994/comments/0",
       "public": false,
       "status": 400,
-      "latencyMs": 81,
+      "latencyMs": 96,
       "code": "VALIDATION_FAILED",
       "errKeys": [
         "code",
@@ -3313,7 +3107,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/works?limit=1",
       "public": true,
       "status": 200,
-      "latencyMs": 85,
+      "latencyMs": 191,
       "keys": [
         "items",
         "pageInfo"
@@ -3483,7 +3277,7 @@
       "path": "/api/v1/badges/badge_bugfinder",
       "public": true,
       "status": 200,
-      "latencyMs": 73,
+      "latencyMs": 125,
       "keys": [
         "description",
         "icon",
@@ -3523,7 +3317,7 @@
       "path": "/api/v1/badges/__probe_no_such_badge__",
       "public": true,
       "status": 404,
-      "latencyMs": 67,
+      "latencyMs": 91,
       "code": "BADGE_NOT_FOUND",
       "errKeys": [
         "code",
@@ -3541,7 +3335,7 @@
       "path": "/api/v1/permissions",
       "public": false,
       "status": 403,
-      "latencyMs": 62,
+      "latencyMs": 84,
       "code": "PERMISSION_DENIED",
       "errKeys": [
         "code",
@@ -3561,7 +3355,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/level",
       "public": false,
       "status": 403,
-      "latencyMs": 70,
+      "latencyMs": 260,
       "code": "PERMISSION_DENIED",
       "errKeys": [
         "code",
@@ -3581,7 +3375,7 @@
       "path": "/api/v1/emojis/gif_expression_aduan_wa",
       "public": false,
       "status": 403,
-      "latencyMs": 63,
+      "latencyMs": 106,
       "code": "PERMISSION_DENIED",
       "errKeys": [
         "code",
@@ -3602,7 +3396,7 @@
       "path": "/api/v1/topics?limit=51",
       "public": true,
       "status": 400,
-      "latencyMs": 59,
+      "latencyMs": 93,
       "code": "VALIDATION_FAILED",
       "errKeys": [
         "code",
@@ -3622,7 +3416,7 @@
       "path": "/api/v1/works?limit=51",
       "public": true,
       "status": 400,
-      "latencyMs": 81,
+      "latencyMs": 367,
       "code": "VALIDATION_FAILED",
       "errKeys": [
         "code",
@@ -3642,7 +3436,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/posts?role=reply&limit=51",
       "public": true,
       "status": 400,
-      "latencyMs": 81,
+      "latencyMs": 404,
       "code": "VALIDATION_FAILED",
       "errKeys": [
         "code",
@@ -3662,7 +3456,7 @@
       "path": "/api/v1/topics/01a195a5-b39d-7709-ad7b-0494928c6dd3/posts?limit=101",
       "public": true,
       "status": 400,
-      "latencyMs": 54,
+      "latencyMs": 96,
       "code": "VALIDATION_FAILED",
       "errKeys": [
         "code",
@@ -3682,7 +3476,7 @@
       "path": "/api/v1/files?limit=101",
       "public": false,
       "status": 400,
-      "latencyMs": 63,
+      "latencyMs": 209,
       "code": "VALIDATION_FAILED",
       "errKeys": [
         "code",
@@ -3702,7 +3496,7 @@
       "path": "/api/v1/users/01a0d338-72f2-731e-a0c5-10724fc89813/works?limit=51",
       "public": true,
       "status": 400,
-      "latencyMs": 71,
+      "latencyMs": 77,
       "code": "VALIDATION_FAILED",
       "errKeys": [
         "code",
@@ -3722,7 +3516,7 @@
       "path": "/api/v1/topics?limit=5&sort=bogus",
       "public": true,
       "status": 400,
-      "latencyMs": 72,
+      "latencyMs": 101,
       "code": "VALIDATION_FAILED",
       "errKeys": [
         "code",
@@ -3742,7 +3536,7 @@
       "path": "/api/v1/topics?limit=5&sort=relevance",
       "public": true,
       "status": 400,
-      "latencyMs": 63,
+      "latencyMs": 98,
       "code": "VALIDATION_FAILED",
       "errKeys": [
         "code",
@@ -3759,10 +3553,10 @@
     },
     "GET /api/v1/works/{wid}/comments?sort=bogus": {
       "label": "作品评论 sort 非法(应泄露 hot|latest|earliest)",
-      "path": "/api/v1/works/01a1ba68-fbf7-7fae-9ddf-fc79efcf9c62/comments?sort=bogus",
+      "path": "/api/v1/works/01a1c05f-6b78-7bc1-9a05-c0d4197d1994/comments?sort=bogus",
       "public": true,
       "status": 400,
-      "latencyMs": 64,
+      "latencyMs": 69,
       "code": "VALIDATION_FAILED",
       "errKeys": [
         "code",
@@ -3782,7 +3576,7 @@
       "path": "/api/v1/emoji-collections?limit=5",
       "public": true,
       "status": 400,
-      "latencyMs": 68,
+      "latencyMs": 155,
       "code": "VALIDATION_FAILED",
       "errKeys": [
         "code",
@@ -3801,7 +3595,7 @@
       "path": "/api/v1/emojis?collectionId=01a0e06b-7980-779b-8be6-e426048ed516&limit=5",
       "public": true,
       "status": 400,
-      "latencyMs": 55,
+      "latencyMs": 93,
       "code": "VALIDATION_FAILED",
       "errKeys": [
         "code",
@@ -3820,7 +3614,7 @@
       "path": "/api/v1/badges?limit=1",
       "public": true,
       "status": 200,
-      "latencyMs": 67,
+      "latencyMs": 84,
       "keys": [
         "items"
       ],
@@ -3915,7 +3709,7 @@
       "path": "/api/v1/topics/00000000-0000-0000-0000-000000000000",
       "public": true,
       "status": 404,
-      "latencyMs": 127,
+      "latencyMs": 77,
       "code": "TOPIC_NOT_FOUND",
       "errKeys": [
         "code",
@@ -3933,7 +3727,7 @@
       "path": "/api/v1/users/00000000-0000-0000-0000-000000000000",
       "public": true,
       "status": 404,
-      "latencyMs": 61,
+      "latencyMs": 74,
       "code": "USER_NOT_FOUND",
       "errKeys": [
         "code",
@@ -3952,7 +3746,7 @@
       "path": "/api/v1/works/00000000-0000-0000-0000-000000000000",
       "public": true,
       "status": 404,
-      "latencyMs": 63,
+      "latencyMs": 82,
       "code": "COMMUNITY_WORK_NOT_FOUND",
       "errKeys": [
         "code",
@@ -3971,7 +3765,7 @@
       "path": "/api/v1/emoji-collections/00000000-0000-0000-0000-000000000000",
       "public": true,
       "status": 404,
-      "latencyMs": 83,
+      "latencyMs": 81,
       "code": "EMOJI_COLLECTION_NOT_FOUND",
       "errKeys": [
         "code",
@@ -3990,7 +3784,7 @@
       "path": "/api/v1/posts/00000000-0000-0000-0000-000000000000",
       "public": false,
       "status": 404,
-      "latencyMs": 67,
+      "latencyMs": 117,
       "code": "POST_NOT_FOUND",
       "errKeys": [
         "code",
@@ -4009,7 +3803,7 @@
       "path": "/api/v1/works/01a1a210-dbc4-7788-af8f-d500d5ab21fb/comments/9999",
       "public": false,
       "status": 404,
-      "latencyMs": 73,
+      "latencyMs": 137,
       "code": "WORK_COMMENT_NOT_FOUND",
       "errKeys": [
         "code",

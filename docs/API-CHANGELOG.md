@@ -180,3 +180,7 @@
 
 - `GET /api/v1/users/{uid}` 响应结构变化: ['avatar', 'backgroundFileId', 'bio', 'createdAt', 'id', 'level', 'profileVersion', 'region', 'showFollowersList', 'showFollowingList', 'stats', 'username', 'viewerState'] → **['avatar', 'backgroundFileId', 'bio', 'createdAt', 'id', 'level', 'profileVersion', 'region', 'showFollowersList', 'showFollowingList', 'silence', 'stats', 'suspension', 'username', 'viewerState']**
 - `GET /api/v1/users/{uid}` 字段路径变化: 新增 `silence`, `suspension`
+
+## 2026-11-09 21:30:21
+
+- `GET /api/v1/works/{wid}/comments` 条目数 0 → 1
