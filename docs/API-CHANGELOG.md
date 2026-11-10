@@ -184,3 +184,9 @@
 ## 2026-11-09 21:30:21
 
 - `GET /api/v1/works/{wid}/comments` 条目数 0 → 1
+
+## 2026-11-10 21:11:55
+
+- `GET /api/v1/works/{wid}/comments` 条目数 1 → 0
+- ⚠️ `/api/v1/works/{wid}/comments` 鉴权属性变化: 公开 → **不存在**
+- `/api/v1/works/{wid}/comments` 匿名错误码 (无) → **COMMUNITY_WORK_NOT_FOUND**
