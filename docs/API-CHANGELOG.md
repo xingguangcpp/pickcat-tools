@@ -201,3 +201,14 @@
 - `GET /api/v1/badges?limit=1` 条目数 8 → 11
 - ⚠️ `/api/v1/works/{wid}/comments` 鉴权属性变化: 不存在 → **公开**
 - `/api/v1/works/{wid}/comments` 匿名错误码 COMMUNITY_WORK_NOT_FOUND → **(无)**
+
+## 2026-11-12 18:47:50
+
+- `GET /api/v1/tags` 条目数 11 → 13
+- `GET /api/v1/users/{uid}` 响应结构变化: ['avatar', 'backgroundFileId', 'bio', 'createdAt', 'id', 'level', 'profileVersion', 'region', 'showFollowersList', 'showFollowingList', 'silence', 'stats', 'suspension', 'username', 'viewerState'] → **['accountState', 'avatar', 'backgroundFileId', 'bio', 'createdAt', 'id', 'level', 'profileVersion', 'region', 'showFollowersList', 'showFollowingList', 'silence', 'stats', 'suspension', 'username', 'viewerState']**
+- `GET /api/v1/users/{uid}` 字段路径变化: 新增 `accountState`
+- `GET /api/v1/badges` 条目数 8 → 11
+- `GET /api/v1/users/{uid}/badges` 条目数 1 → 2
+- `GET /api/v1/badges?limit=1` 条目数 8 → 11
+- ⚠️ `/api/v1/works/{wid}/comments` 鉴权属性变化: 不存在 → **公开**
+- `/api/v1/works/{wid}/comments` 匿名错误码 COMMUNITY_WORK_NOT_FOUND → **(无)**
