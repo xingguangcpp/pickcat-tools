@@ -224,3 +224,77 @@
 - `GET /api/v1/badges?limit=1` 条目数 8 → 11
 - ⚠️ `/api/v1/works/{wid}/comments` 鉴权属性变化: 不存在 → **公开**
 - `/api/v1/works/{wid}/comments` 匿名错误码 COMMUNITY_WORK_NOT_FOUND → **(无)**
+
+## 2026-11-15 12:35:54
+
+- `GET /api/v1/topics?limit=5` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/topics/{tid}` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/topics/{tid}/posts?limit=5` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/topics/{tid}/posts?limit=5&sort=latest` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/posts/{pid}` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/tags` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/tags?limit=20` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/users/{uid}` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/post-submissions?contentRole=TOPIC_REPLY&status=PENDING` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/users/{uid}/posts?role=reply&limit=5` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/users/{uid}/posts?role=bogus` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/users/{uid}/followers?limit=5` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/users/{uid}/following?limit=5` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/notifications?limit=10` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/works?limit=5` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/badges` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/emoji-collections` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/emojis?collectionId={cid}` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/session` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/users/{uid}/topics?limit=5` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/post-submissions/{sid}` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/__probe_nonexistent__` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/posts?limit=5` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/topics?cursor=abc` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/topics/{tid}/posts?limit=5&sort=bogus` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/users/{uid}/posts?role=reply&sort=bogus` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/notifications?limit=100` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/notifications?limit=50` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/topics?limit=5&sort=latest` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/users/{uid}/followers?limit=5&cursor=abc` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/emoji-collections/{cid}/emojis` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/health` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/users/{uid}/badges` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/works/{wid}` 响应结构变化: ['author', 'coinCount', 'commentCount', 'createdAt', 'description', 'favoriteCount', 'forkEnable', 'id', 'isForked', 'lastSyncedAt', 'likeCount', 'operation', 'parentUuid', 'preview', 'published', 'screenshotCoverUrl', 'sourceUserId', 'sourceWorkId', 'type', 'updatedAt', 'viewCount', 'workName'] → **['author', 'coinCount', 'commentCount', 'createdAt', 'description', 'favoriteCount', 'forkEnable', 'id', 'isForked', 'lastSyncedAt', 'likeCount', 'operation', 'parentUuid', 'player', 'preview', 'published', 'screenshotCoverUrl', 'sourceUserId', 'sourceWorkId', 'type', 'updatedAt', 'viewCount', 'workName']**
+- `GET /api/v1/works/{wid}` 字段路径变化: 新增 `player`, `player.entryUrl`, `player.runtime`
+- `GET /api/v1/works/{wid}` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/emoji-collections/{cid}` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/topics?limit=5&kind=bogus` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/topics?limit=5&kind=DISCUSSION` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/works?limit=5&kind=DISCUSSION` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/users/{uid}/topics?limit=5&kind=DISCUSSION` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/users/{uid}/followers?limit=abc` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/files?limit=1` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/files/00000000-0000-0000-0000-000000000000` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/works/{wid}/comments` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/works/{wid}/comments/1` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/works/{wid}/comments/0` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/users/{uid}/works?limit=1` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/badges/{bid}` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/badges/__probe_no_such_badge__` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/permissions` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/users/{uid}/level` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/emojis/{eid}` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/topics?limit=51` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/works?limit=51` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/users/{uid}/posts?role=reply&limit=51` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/topics/{tid}/posts?limit=101` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/files?limit=101` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/users/{uid}/works?limit=51` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/topics?limit=5&sort=bogus` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/topics?limit=5&sort=relevance` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/works/{wid}/comments?sort=bogus` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/emoji-collections?limit=5` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/emojis?collectionId={cid}&limit=5` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/badges?limit=1` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/topics/00000000-0000-0000-0000-000000000000` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/users/00000000-0000-0000-0000-000000000000` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/works/00000000-0000-0000-0000-000000000000` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/emoji-collections/00000000-0000-0000-0000-000000000000` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/posts/00000000-0000-0000-0000-000000000000` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
+- `GET /api/v1/works/{fw}/comments/9999` 响应头 `access-control-expose-headers` 变化: ETag,Badge-ETag,Emoji-ETag → **ETag,Badge-ETag,Emoji-ETag,Retry-After**
